@@ -1,0 +1,31 @@
+# docs_config.yaml
+output:
+  markdown: true
+  json: true
+  html: false
+  diagrams: true
+  diagram_format: "png"
+  output_dir: "generated_docs"
+
+analysis:
+  include_private: false  # Включать ли приватные методы (_method)
+  include_tests: true     # Включать ли тестовые файлы
+  max_file_size: 5000000  # Максимальный размер файла для анализа (в байтах)
+  follow_imports: true    # Анализировать импортируемые модули
+
+exclude_dirs:
+  - "__pycache__"
+  - ".git"
+  - ".vscode"
+  - "venv"
+  - ".venv"
+  - "node_modules"
+  - "dist"
+  - "build"
+
+exclude_files:
+  - "*.pyc"
+  - "*.pyo"
+  - "test_*.py"      # Исключить тестовые файлы
+  - "conftest.py"
+  - "setup.py"

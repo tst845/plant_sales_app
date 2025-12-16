@@ -1,0 +1,138 @@
+// Module Dependencies
+digraph {
+	rankdir=LR size="8,5"
+	node [color=lightblue shape=box style=filled]
+	advanced_documentation [label=advanced_documentation]
+	export_project_v1 [label=export_project_v1]
+	main [label=main]
+	main_db_test [label=main_db_test]
+	migrate_db [label=migrate_db]
+	"app.__init__" [label=__init__]
+	"app.core.config" [label=config]
+	"app.core.database" [label=database]
+	"app.core.database_backup" [label=database_backup]
+	"app.core.test_data" [label=test_data]
+	"app.core.__init__" [label=__init__]
+	"app.ml.image_processor" [label=image_processor]
+	"app.ml.model_loader" [label=model_loader]
+	"app.ml.__init__" [label=__init__]
+	"app.ui.__init__" [label=__init__]
+	"app.ui.screens.camera_screen" [label=camera_screen]
+	"app.ui.screens.catalog_screen" [label=catalog_screen]
+	"app.ui.screens.disease_detection_screen" [label=disease_detection_screen]
+	"app.ui.screens.main_screen" [label=main_screen]
+	"app.ui.screens.orders_screen" [label=orders_screen]
+	"app.ui.screens.results_screen" [label=results_screen]
+	"app.ui.screens.settings_screen" [label=settings_screen]
+	"app.ui.screens.__init__" [label=__init__]
+	"app.ui.widgets.custom_buttons" [label=custom_buttons]
+	"app.ui.widgets.image_widgets" [label=image_widgets]
+	"app.ui.widgets.__init__" [label=__init__]
+	"tests.test_basic" [label=test_basic]
+	"tests.__init__" [label=__init__]
+	"app.ui.screens.orders_screen" -> main
+	"app.ml.__init__" -> main
+	"app.ui.screens.main_screen" -> main
+	"app.ml.model_loader" -> main
+	"app.ui.widgets.__init__" -> main
+	"app.__init__" -> main
+	"app.ui.screens.settings_screen" -> main
+	"app.ui.screens.catalog_screen" -> main
+	"app.ui.__init__" -> main
+	"app.ui.screens.results_screen" -> main
+	"app.ui.screens.camera_screen" -> main
+	"app.core.test_data" -> main
+	"app.ui.screens.__init__" -> main
+	"app.core.database" -> main
+	"app.ui.screens.disease_detection_screen" -> main
+	"app.core.__init__" -> main
+	"app.ui.widgets.image_widgets" -> main
+	"app.ml.image_processor" -> main
+	"app.core.database_backup" -> main
+	"app.ui.widgets.custom_buttons" -> main
+	"app.core.config" -> main
+	"app.ui.screens.orders_screen" -> main_db_test
+	"app.ml.__init__" -> main_db_test
+	"app.ui.screens.main_screen" -> main_db_test
+	"app.ml.model_loader" -> main_db_test
+	"app.ui.widgets.__init__" -> main_db_test
+	"app.__init__" -> main_db_test
+	"app.ui.screens.settings_screen" -> main_db_test
+	"app.ui.screens.catalog_screen" -> main_db_test
+	"app.ui.__init__" -> main_db_test
+	"app.ui.screens.results_screen" -> main_db_test
+	"app.ui.screens.camera_screen" -> main_db_test
+	"app.core.test_data" -> main_db_test
+	"app.ui.screens.__init__" -> main_db_test
+	"app.core.database" -> main_db_test
+	"app.ui.screens.disease_detection_screen" -> main_db_test
+	"app.core.__init__" -> main_db_test
+	"app.ui.widgets.image_widgets" -> main_db_test
+	"app.ml.image_processor" -> main_db_test
+	"app.core.database_backup" -> main_db_test
+	"app.ui.widgets.custom_buttons" -> main_db_test
+	"app.core.config" -> main_db_test
+	"app.ui.screens.orders_screen" -> "app.core.database"
+	"app.ml.__init__" -> "app.core.database"
+	"app.ui.screens.main_screen" -> "app.core.database"
+	"app.ml.model_loader" -> "app.core.database"
+	"app.ui.widgets.__init__" -> "app.core.database"
+	"app.__init__" -> "app.core.database"
+	"app.ui.screens.settings_screen" -> "app.core.database"
+	"app.ui.screens.catalog_screen" -> "app.core.database"
+	"app.ui.__init__" -> "app.core.database"
+	"app.ui.screens.results_screen" -> "app.core.database"
+	"app.ui.screens.camera_screen" -> "app.core.database"
+	"app.core.test_data" -> "app.core.database"
+	"app.ui.screens.__init__" -> "app.core.database"
+	"app.core.database" -> "app.core.database"
+	"app.ui.screens.disease_detection_screen" -> "app.core.database"
+	"app.core.__init__" -> "app.core.database"
+	"app.ui.widgets.image_widgets" -> "app.core.database"
+	"app.ml.image_processor" -> "app.core.database"
+	"app.core.database_backup" -> "app.core.database"
+	"app.ui.widgets.custom_buttons" -> "app.core.database"
+	"app.core.config" -> "app.core.database"
+	"app.ui.screens.orders_screen" -> "app.core.database_backup"
+	"app.ml.__init__" -> "app.core.database_backup"
+	"app.ui.screens.main_screen" -> "app.core.database_backup"
+	"app.ml.model_loader" -> "app.core.database_backup"
+	"app.ui.widgets.__init__" -> "app.core.database_backup"
+	"app.__init__" -> "app.core.database_backup"
+	"app.ui.screens.settings_screen" -> "app.core.database_backup"
+	"app.ui.screens.catalog_screen" -> "app.core.database_backup"
+	"app.ui.__init__" -> "app.core.database_backup"
+	"app.ui.screens.results_screen" -> "app.core.database_backup"
+	"app.ui.screens.camera_screen" -> "app.core.database_backup"
+	"app.core.test_data" -> "app.core.database_backup"
+	"app.ui.screens.__init__" -> "app.core.database_backup"
+	"app.core.database" -> "app.core.database_backup"
+	"app.ui.screens.disease_detection_screen" -> "app.core.database_backup"
+	"app.core.__init__" -> "app.core.database_backup"
+	"app.ui.widgets.image_widgets" -> "app.core.database_backup"
+	"app.ml.image_processor" -> "app.core.database_backup"
+	"app.core.database_backup" -> "app.core.database_backup"
+	"app.ui.widgets.custom_buttons" -> "app.core.database_backup"
+	"app.core.config" -> "app.core.database_backup"
+	"app.ui.screens.orders_screen" -> "app.ui.screens.main_screen"
+	"app.ml.__init__" -> "app.ui.screens.main_screen"
+	"app.ui.screens.main_screen" -> "app.ui.screens.main_screen"
+	"app.ml.model_loader" -> "app.ui.screens.main_screen"
+	"app.ui.widgets.__init__" -> "app.ui.screens.main_screen"
+	"app.__init__" -> "app.ui.screens.main_screen"
+	"app.ui.screens.settings_screen" -> "app.ui.screens.main_screen"
+	"app.ui.screens.catalog_screen" -> "app.ui.screens.main_screen"
+	"app.ui.__init__" -> "app.ui.screens.main_screen"
+	"app.ui.screens.results_screen" -> "app.ui.screens.main_screen"
+	"app.ui.screens.camera_screen" -> "app.ui.screens.main_screen"
+	"app.core.test_data" -> "app.ui.screens.main_screen"
+	"app.ui.screens.__init__" -> "app.ui.screens.main_screen"
+	"app.core.database" -> "app.ui.screens.main_screen"
+	"app.ui.screens.disease_detection_screen" -> "app.ui.screens.main_screen"
+	"app.core.__init__" -> "app.ui.screens.main_screen"
+	"app.ui.widgets.image_widgets" -> "app.ui.screens.main_screen"
+	"app.ml.image_processor" -> "app.ui.screens.main_screen"
+	"app.core.database_backup" -> "app.ui.screens.main_screen"
+	"app.ui.widgets.custom_buttons" -> "app.ui.screens.main_screen"
+	"app.core.config" -> "app.ui.screens.main_screen"
+}
