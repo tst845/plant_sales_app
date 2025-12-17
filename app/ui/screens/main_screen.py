@@ -7,6 +7,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 # Импортируем вкладки из отдельных файлов
 from app.ui.screens.settings_screen import SettingsTab
 from app.ui.screens.catalog_screen import CatalogTab
+from app.ui.screens.orders_screen import OrdersTab
 
 Builder.load_string('''
 <MainScreen>:
@@ -30,27 +31,27 @@ Builder.load_string('''
             halign: 'center'
             font_style: 'H5'
         
-<OrdersTab>:
-    name: 'orders'
-    text: 'Заказы'
-    icon: 'cart'
+# <OrdersTab>:
+#     name: 'orders'
+#     text: 'Заказы'
+#     icon: 'cart'
     
-    MDBoxLayout:
-        orientation: 'vertical'
-        padding: '20dp'
+#     MDBoxLayout:
+#         orientation: 'vertical'
+#         padding: '20dp'
         
-        MDLabel:
-            text: 'Управление заказами'
-            halign: 'center'
-            font_style: 'H5'
+#         MDLabel:
+#             text: 'Управление заказами'
+#             halign: 'center'
+#             font_style: 'H5'
 ''')
 
 # Классы для вкладок навигации
 class DiagnosisTab(MDBottomNavigationItem):
     pass
 
-class OrdersTab(MDBottomNavigationItem):
-    pass
+# class OrdersTab(MDBottomNavigationItem):
+#     pass
 
 class MainScreen(Screen):
     def __init__(self, **kwargs):
