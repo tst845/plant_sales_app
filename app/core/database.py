@@ -312,26 +312,7 @@ class DatabaseManager:
         
         return result
     
-    # def get_pesticide_substances(self, pesticide_id):
-    #     """Получение действующих веществ препарата"""
-    #     cursor = self.connection.cursor()
-    #     cursor.execute('''
-    #         SELECT 
-    #             ps.id,
-    #             a.substance_name as name,
-    #             ps.concentration
-    #         FROM pesticide_active_substances ps
-    #         LEFT JOIN active_substances a ON ps.substance_id = a.id
-    #         WHERE ps.pesticide_id = ?
-    #     ''', (pesticide_id,))
-        
-    #     rows = cursor.fetchall()
-    #     result = []
-    #     for row in rows:
-    #         result.append(dict(row))
-        
-    #     return result
-
+ 
     def get_pesticide_with_substances(self, pesticide_id):
         """Получение конкретного пестицида с его действующими веществами"""
         cursor = self.connection.cursor()
@@ -373,7 +354,7 @@ def search_pesticides(self, query, filters=None):
     cursor.execute(sql, params)
     return cursor.fetchall()
     
-    def close(self):
+def close(self):
         """Закрытие соединения с БД"""
         if self.connection:
             self.connection.close()
