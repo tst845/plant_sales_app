@@ -89,6 +89,17 @@ Builder.load_string('''
                 id: pesticides_list
                 padding: '10dp'
                 spacing: '10dp'
+    # Кнопка экспорта в Excel (слева)
+    MDFloatingActionButton:
+        icon: "file-excel"
+        type: "standard"
+        md_bg_color: "#2196F3"  # Синий цвет для Excel
+        elevation_normal: 12
+        pos_hint: {"x": 0.02, "y": 0.02}
+        size_hint: (None, None)
+        size: ("56dp", "56dp")
+        on_release: root.export_to_excel()
+                    
     # Фиксированная кнопка создания поверх списка
     MDFloatingActionButton:
         icon: "plus"
@@ -853,6 +864,15 @@ class CatalogTab(MDBottomNavigationItem):
         # Инициализация test_pesticides (ЗДЕСЬ ИСПРАВЛЕНИЕ!)
         self.test_pesticides = self._get_test_pesticides()
     
+        try:
+            import pandas as pd
+            import openpyxl
+            import os
+            from datetime import datetime
+        except ImportError as e:
+            print(f"⚠️ Библиотеки для экспорта не установлены: {e}")
+
+
     def on_enter(self):
         """Вызывается при переходе на вкладку"""
         self._setup_catalog()
@@ -1076,7 +1096,6 @@ class CatalogTab(MDBottomNavigationItem):
             # Fallback на тестовые данные
             self._load_test_pesticides(search_query, filters, sort_criteria, sort_order)
     
-
     def _apply_filters(self, pesticides, search_query, filters):
         """Применение фильтров к списку препаратов"""
         filtered = pesticides
@@ -2022,3 +2041,224 @@ class CatalogTab(MDBottomNavigationItem):
             snackbar.open()
         except Exception as e:
             print(f"❌ {message}")
+
+    def export_to_excel(self):
+        """Экспорт отфильтрованного списка препаратов в Excel"""
+        try:
+            print("📊 Начинаю экспорт в Excel...")
+            
+            # Импортируем необходимые библиотеки
+            import pandas as pd
+            import os
+            from datetime import datetime
+            from kivy import platform
+            
+            # Определяем путь для сохранения файла
+            if platform == 'android':
+                # На Android сохраняем во внешнее хранилище
+                from android.storage import primary_external_storage_path
+                base_path = primary_external_storage_path()
+                export_dir = os.path.join(base_path, "Documents", "PlantProtection")
+            else:
+                # На компьютере сохраняем в папку проекта
+                export_dir = os.path.join(os.getcwd(), "exports")
+            
+            # Создаем директорию если ее нет
+            os.makedirs(export_dir, exist_ok=True)
+            
+            # Генерируем имя файла с датой и временем
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"pesticides_export_{timestamp}.xlsx"
+            filepath = os.path.join(export_dir, filename)
+            
+            # Получаем отфильтрованные препараты
+            filtered_pesticides = []
+            
+            # Получаем данные из БД или тестовые данные
+            app = MDApp.get_running_app()
+            if hasattr(app.db, 'get_pesticides_with_substances'):
+                try:
+                    pesticides = app.db.get_pesticides_with_substances()
+                    # Применяем фильтры так же как в _load_pesticides
+                    filtered_pesticides = self._apply_filters(pesticides, 
+                                                             self.ids.search_input.text, 
+                                                             self.filters)
+                except Exception as e:
+                    print(f"⚠️ Ошибка получения данных из БД: {e}")
+                    filtered_pesticides = self._get_filtered_test_pesticides()
+            else:
+                filtered_pesticides = self._get_filtered_test_pesticides()
+            
+            if not filtered_pesticides:
+                self._show_error_message("Нет данных для экспорта")
+                return
+            
+            # Подготавливаем данные для экспорта
+            excel_data = []
+            
+            for pesticide in filtered_pesticides:
+                # Получаем все действующие вещества для этого препарата
+                substances_list = []
+                
+                if hasattr(pesticide, 'get') and 'substances' in pesticide:
+                    substances_str = str(pesticide.get('substances', ''))
+                    if substances_str and substances_str != 'None':
+                        substances_parts = substances_str.split('||')
+                        for substance in substances_parts:
+                            if substance.strip():
+                                substances_list.append(substance.strip())
+                
+                # Формируем строку ДВ через точку с запятой
+                substances_display = '; '.join(substances_list) if substances_list else 'Не указаны'
+                
+                # Форматируем цену
+                price = pesticide.get('price', '')
+                if isinstance(price, (int, float)):
+                    price_display = f"{price} руб."
+                else:
+                    price_display = str(price) if price else 'Не указана'
+                
+                # Создаем строку для Excel
+                row = {
+                    'ID': pesticide.get('id', ''),
+                    'Название': pesticide.get('name', ''),
+                    'Действующие вещества': substances_display,
+                    'Описание': pesticide.get('description', ''),
+                    'Норма расхода': pesticide.get('application_rate', ''),
+                    'Фасовка': pesticide.get('packaging', ''),
+                    'Цена': price_display,
+                    'Производитель': pesticide.get('manufacturer', ''),
+                    'Тип': pesticide.get('type', pesticide.get('pesticide_type', '')),
+                    'Культуры': pesticide.get('cultures', ''),
+                    'Заболевания': pesticide.get('diseases', ''),
+                    'Единица измерения': pesticide.get('unit', '')
+                }
+                excel_data.append(row)
+            
+            # Создаем DataFrame
+            df = pd.DataFrame(excel_data)
+            
+            # Экспортируем в Excel
+            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Препараты', index=False)
+                
+                # Настраиваем ширину колонок
+                worksheet = writer.sheets['Препараты']
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)  # Максимальная ширина 50 символов
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Сообщение об успехе
+            message = f"✅ Экспортировано {len(excel_data)} препаратов\nФайл: {filename}"
+            
+            # Показываем диалог с информацией
+            from kivymd.uix.dialog import MDDialog
+            from kivymd.uix.button import MDFlatButton
+            
+            self.export_dialog = MDDialog(
+                title="Экспорт завершен",
+                text=message,
+                buttons=[
+                    MDFlatButton(
+                        text="OK",
+                        on_release=lambda x: self.export_dialog.dismiss()
+                    )
+                ]
+            )
+            self.export_dialog.open()
+            
+            print(f"✅ Экспорт завершен: {filepath}")
+            
+        except ImportError as e:
+            self._show_error_message(f"Библиотеки не установлены: {e}\nУстановите: pip install pandas openpyxl")
+        except Exception as e:
+            print(f"❌ Ошибка экспорта в Excel: {e}")
+            self._show_error_message(f"Ошибка экспорта: {str(e)[:100]}")
+    
+    def _get_filtered_test_pesticides(self):
+        """Получить отфильтрованные тестовые препараты"""
+        # Применяем фильтры к тестовым данным
+        filtered = self.test_pesticides
+        
+        # Поиск по названию, описанию и веществу
+        search_query = self.ids.search_input.text
+        if search_query:
+            search_query = search_query.lower()
+            filtered = [p for p in filtered
+                       if search_query in p.get('name', '').lower()
+                       or search_query in p.get('description', '').lower()
+                       or search_query in str(p.get('substance', '')).lower()]
+        
+        # Фильтр по типу
+        if self.filters and self.filters.get('type'):
+            filtered = [p for p in filtered if p.get('type', '') in self.filters['type']]
+        
+        # Фильтр по культурам
+        if self.filters and self.filters.get('cultures'):
+            selected_cultures = self.filters['cultures']
+            filtered = [p for p in filtered if any(
+                culture in str(p.get('cultures', '')) 
+                for culture in selected_cultures
+            )]
+        
+        # Фильтр по заболеваниям
+        if self.filters and self.filters.get('diseases'):
+            selected_diseases = self.filters['diseases']
+            filtered = [p for p in filtered if any(
+                disease in str(p.get('diseases', '')) 
+                for disease in selected_diseases
+            )]
+        
+        # Фильтр по цене
+        if self.filters:
+            min_price = self.filters.get('min_price')
+            max_price = self.filters.get('max_price')
+            
+            if min_price and min_price.strip():
+                try:
+                    min_val = float(min_price.replace(' ', ''))
+                    filtered = [p for p in filtered if self._extract_price(p.get('price', 0)) >= min_val]
+                except ValueError:
+                    pass
+            
+            if max_price and max_price.strip():
+                try:
+                    max_val = float(max_price.replace(' ', ''))
+                    filtered = [p for p in filtered if self._extract_price(p.get('price', 0)) <= max_val]
+                except ValueError:
+                    pass
+        
+        return filtered
+    
+    def _extract_price(self, price_str):
+        """Извлечение числового значения цены из строки"""
+        try:
+            if isinstance(price_str, (int, float)):
+                return float(price_str)
+            
+            # Убираем все нецифровые символы кроме точки и запятой
+            price_str = str(price_str)
+            # Убираем текст "руб." и пробелы
+            price_str = price_str.replace('руб.', '').replace(' ', '')
+            # Заменяем запятую на точку если нужно
+            price_str = price_str.replace(',', '.')
+            return float(price_str)
+        except (ValueError, AttributeError):
+            return 0.0
+    
+    # Вспомогательный метод для показа сообщений
+    def show_snackbar(self, message):
+        """Показать уведомление"""
+        try:
+            snackbar = Snackbar(text=message)
+            snackbar.open()
+        except Exception as e:
+            print(f"💬 {message}")
