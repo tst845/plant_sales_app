@@ -337,11 +337,16 @@ class OrdersTab(MDBottomNavigationItem):
         ]
         
         for order in test_orders:
+#             status_colors = {
+#     "draft": (0.75, 0.95, 0.75, 0.3),      # Светло-зеленый (черновик)
+#     "processing": (0.5, 0.85, 0.5, 0.3),   # Средне-зеленый (в обработке)
+#     "completed": (0.2, 0.7, 0.2, 0.3)      # Темно-зеленый (завершено)
+# }
             status_colors = {
-                "draft": (1, 0.65, 0, 0.3),  # Orange с прозрачностью
-                "processing": (0.68, 0.85, 0.9, 0.3),  # Blue с прозрачностью
-                "completed": (0.68, 0.93, 0.68, 0.3)   # Green с прозрачностью
-            }
+    "draft": (0.85, 0.95, 0.85, 0.4),      # Очень светло-зеленый
+    "processing": (0.6, 0.9, 0.6, 0.4),    # Светло-зеленый
+    "completed": (0.3, 0.8, 0.3, 0.4)      # Зеленый
+}
             
             item = ThreeLineListItem(
                 text=f"Заказ #{order['id']}",
