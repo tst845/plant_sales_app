@@ -14,7 +14,7 @@ from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDLabel
 from kivymd.uix.toolbar import MDTopAppBar
 from kivy.metrics import dp
-
+from copy import deepcopy
 import datetime
 
 Builder.load_string("""
@@ -100,11 +100,11 @@ class OrderItemCard(MDCard):
     
     def edit_item(self):
         """Редактировать позицию"""
-        pass
+        print(f"Редактирование позиции: {self.order_item.get('name')}")
     
     def delete_item(self):
         """Удалить позицию"""
-        pass
+        print(f"Удаление позиции: {self.order_item.get('name')}")
 
 class CustomerSelectionDialog(MDDialog):
     """Диалог выбора клиента"""
@@ -373,7 +373,7 @@ class OrdersTab(MDBottomNavigationItem):
     def open_order(self, order):
         """Открытие существующего заказа"""
         if order['status'] == 'draft':
-            self.current_order = order.copy()
+            self.current_order = deepcopy(order)
             # Добавляем поле customer_name для совместимости
             self.current_order['customer_name'] = order['customer']
             self.order_state = "draft"

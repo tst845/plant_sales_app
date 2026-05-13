@@ -7,6 +7,7 @@ from kivy.metrics import dp
 from app.core.config import AppConfig
 from app.core.database import DatabaseManager
 from app.ui.screens.main_screen import MainScreen
+from app.ui.screens.camera_screen import CameraScreen
 
 class PlantProtectionApp(MDApp):
     def __init__(self, **kwargs):
@@ -43,6 +44,10 @@ class PlantProtectionApp(MDApp):
         main_screen = MainScreen(name='main')
         self.screen_manager.add_widget(main_screen)
         
+        # Добавляем экран диагностики (камера)
+        camera_screen = CameraScreen(name='camera_screen')
+        self.screen_manager.add_widget(camera_screen)
+        
         return self.screen_manager
     
     def show_substance_editor(self, pesticide_id):
@@ -65,15 +70,21 @@ class PlantProtectionApp(MDApp):
     # Методы навигации
     def open_diagnosis(self):
         print("📷 Открыть диагностику заболеваний")
+        if self.screen_manager:
+            self.screen_manager.current = 'camera_screen'
     
     def open_catalog(self):
         print("📚 Открыть каталог препаратов")
+        # TODO: переключение на экран каталога, когда он будет добавлен
+        # self.screen_manager.current = 'catalog_screen'
     
     def open_orders(self):
         print("🛒 Открыть заказы и клиенты")
+        # TODO: переключение на экран заказов
     
     def open_settings(self):
         print("⚙️ Открыть настройки")
+        # TODO: переключение на экран настроек
     
     def navigation_draw(self):
         print("📋 Открыть меню навигации")

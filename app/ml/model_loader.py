@@ -1,4 +1,8 @@
-import tensorflow as tf
+try:
+    import tensorflow as tf
+except ImportError:
+    tf = None
+    print("⚠️ TensorFlow не установлен. Модель работать не будет.")
 import numpy as np
 
 class ModelLoader:
