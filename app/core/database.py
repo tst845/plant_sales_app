@@ -88,7 +88,6 @@ class DatabaseManager:
                 price DECIMAL(10, 2),
                 manufacturer TEXT,
                 unit_of_measure TEXT,
-                # image_url TEXT,
                 pesticide_type_id INTEGER REFERENCES pesticide_types(id)
             )
         ''')
@@ -225,7 +224,7 @@ class DatabaseManager:
             SELECT p.* FROM pesticides p
             JOIN pesticide_diseases pd ON p.id = pd.pesticide_id
             JOIN diseases d ON pd.disease_id = d.id
-            WHERE d.disease_class_id = ?
+            WHERE d.disease_class_index = ?
             LIMIT 10
         ''', (class_index,))
         return cursor.fetchall()
@@ -338,6 +337,7 @@ class DatabaseManager:
     
 def search_pesticides(self, query, filters=None):
     """Поиск препаратов с фильтрами"""
+    print(f"Поиск по '{query}', фильтры {filters} пока не применяются")
     cursor = self.connection.cursor()
     
     sql = '''

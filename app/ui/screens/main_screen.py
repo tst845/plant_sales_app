@@ -32,10 +32,7 @@ Builder.load_string('''
         orientation: 'vertical'
         padding: '20dp'
         
-        MDLabel:
-            text: 'Управление заказами'
-            halign: 'center'
-            font_style: 'H5'
+
 ''')
 
 # Классы для вкладок навигации

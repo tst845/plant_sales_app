@@ -907,7 +907,8 @@ class CatalogTab(MDBottomNavigationItem):
         self.ids.search_input.text = ""
         
         # Обновляем кнопку очистки поиска
-        self.ids.search_clear_button.icon_color = [0.5, 0.5, 0.5, 0.3]
+        if hasattr(self.ids, 'search_clear_button'):
+            self.ids.search_clear_button.icon_color = [0.5, 0.5, 0.5, 0.3]
         
         # Сбрасываем текст в открытом диалоге фильтров (если он открыт)
         if self.filter_dialog:
@@ -1238,31 +1239,17 @@ class CatalogTab(MDBottomNavigationItem):
         """Открыть меню выбора типа пестицида"""
         if not self.filter_dialog:
             return
-        
-        # Если меню уже открыто, закройте его
         if self.type_menu and self.type_menu.parent:
             self.type_menu.dismiss()
             self.type_menu = None
             return
-        
-        # Список доступных типов пестицидов
         pesticide_types = ["Гербициды", "Инсектициды", "Фунгициды", "Бактерициды", "Фумиганты"]
-        
-        # Создаем элементы меню
-        menu_items = [
-            {
-                "text": p_type,
-                "viewclass": "OneLineListItem",
-                "height": dp(48),
-                "on_release": lambda x=p_type: self.select_pesticide_type(x),
-            } for p_type in pesticide_types
-        ]
-        
-        # Создаем меню - список НАД полем
+        menu_items = [{"text": t, "viewclass": "OneLineListItem", "height": dp(48),
+                    "on_release": lambda x=t: self.select_pesticide_type(x)} for t in pesticide_types]
         self.type_menu = MDDropdownMenu(
-            caller=self.filter_dialog.content_cls.ids.type_filter,  # Исправлено!
+            caller=self.filter_dialog.content_cls.ids.type_filter,
             items=menu_items,
-            width=dp(200),  # Укажите фиксированную ширину
+            width=dp(200),
             max_height=dp(150),
             position="auto",
             ver_growth="down"
@@ -1270,34 +1257,34 @@ class CatalogTab(MDBottomNavigationItem):
         self.type_menu.open()
 
     def open_culture_menu(self):
-        """Открыть меню выбора культур ПОД полем"""
+        """Открыть меню выбора культур для фильтрации"""
         if not self.filter_dialog:
             return
-        
-        # Получаем уникальные культуры из препаратов
-        all_cultures = []
-        for pesticide in self.test_pesticides:
-            if 'cultures' in pesticide:
-                cultures = [c.strip() for c in pesticide['cultures'].split(',')]
-                all_cultures.extend(cultures)
-        
-        unique_cultures = sorted(set([c for c in all_cultures if c]))
-        
-        # Если меню уже открыто, просто обновляем его
-        if hasattr(self, 'culture_menu') and self.culture_menu and self.culture_menu.parent:
-            self._update_culture_menu_items(unique_cultures)
+        if self.culture_menu and self.culture_menu.parent:
+            self.culture_menu.dismiss()
+            self.culture_menu = None
             return
         
-        # Создаем меню ПОД полем
+        # Список доступных культур (можно загружать из БД)
+        cultures = ["Пшеница", "Ячмень", "Кукуруза", "Подсолнечник", "Соя", "Рапс", "Сахарная свекла", "Картофель"]
+        
+        menu_items = [
+            {
+                "text": culture,
+                "viewclass": "OneLineListItem",
+                "height": dp(48),
+                "on_release": lambda x=culture: self.select_culture(x),
+            } for culture in cultures
+        ]
+        
         self.culture_menu = MDDropdownMenu(
             caller=self.filter_dialog.content_cls.ids.culture_filter,
-            items=[],  # Заполним ниже
-            width_mult=4,
-            max_height=dp(200),
-            position="auto",  # Авто-позиционирование
-            ver_growth="down"  # Растет вниз
+            items=menu_items,
+            width=dp(200),
+            max_height=dp(150),
+            position="auto",
+            ver_growth="down"
         )
-        self._update_culture_menu_items(unique_cultures)
         self.culture_menu.open()
 
     def _update_culture_menu_items(self, cultures):
@@ -1354,33 +1341,68 @@ class CatalogTab(MDBottomNavigationItem):
         """Открыть меню выбора заболеваний ПОД полем"""
         if not self.filter_dialog:
             return
-        
-        # Получаем уникальные заболевания из препаратов
-        all_diseases = []
-        for pesticide in self.test_pesticides:
-            if 'diseases' in pesticide:
-                diseases = [d.strip() for d in pesticide['diseases'].split(',')]
-                all_diseases.extend(diseases)
-        
-        unique_diseases = sorted(set([d for d in all_diseases if d]))
-        
-        # Если меню уже открыто, просто обновляем его
-        if hasattr(self, 'disease_menu') and self.disease_menu and self.disease_menu.parent:
-            self._update_disease_menu_items(unique_diseases)
+        if self.disease_menu and self.disease_menu.parent:
+            self.disease_menu.dismiss()
+            self.disease_menu = None
             return
         
-        # Создаем меню ПОД полем
+        # Список доступных заболеваний (можно загружать из БД)
+        diseases = [
+            "Мучнистая роса", "Парша", "Ржавчина", "Фитофтороз", "Антракноз",
+            "Бактериальная пятнистость", "Вирус мозаики", "Серая гниль", "Черная пятнистость"
+        ]
+        
+        menu_items = [
+            {
+                "text": disease,
+                "viewclass": "OneLineListItem",
+                "height": dp(48),
+                "on_release": lambda x=disease: self.select_disease(x),
+            } for disease in diseases
+        ]
+        
         self.disease_menu = MDDropdownMenu(
             caller=self.filter_dialog.content_cls.ids.disease_filter,
-            items=[],  # Заполним ниже
-            width_mult=4,
-            max_height=dp(200),
-            position="auto",  # Авто-позиционирование
-            ver_growth="down"  # Растет вниз
+            items=menu_items,
+            width=dp(200),
+            max_height=dp(150),
+            position="auto",
+            ver_growth="down"
         )
-        self._update_disease_menu_items(unique_diseases)
         self.disease_menu.open()
 
+    def select_culture(self, culture):
+        """Выбрать культуру в фильтрах (добавить/удалить)"""
+        if not self.filter_dialog:
+            return
+        content = self.filter_dialog.content_cls
+        current = content.ids.culture_filter.text
+        items = [c.strip() for c in current.split(',') if c.strip()]
+        if culture in items:
+            items.remove(culture)
+        else:
+            items.append(culture)
+        content.ids.culture_filter.text = ', '.join(items)
+        if self.culture_menu:
+            self.culture_menu.dismiss()
+            self.culture_menu = None
+
+    def select_disease(self, disease):
+        """Выбрать заболевание в фильтрах (добавить/удалить)"""
+        if not self.filter_dialog:
+            return
+        content = self.filter_dialog.content_cls
+        current = content.ids.disease_filter.text
+        items = [d.strip() for d in current.split(',') if d.strip()]
+        if disease in items:
+            items.remove(disease)
+        else:
+            items.append(disease)
+        content.ids.disease_filter.text = ', '.join(items)
+        if self.disease_menu:
+            self.disease_menu.dismiss()
+            self.disease_menu = None
+            
     def _update_disease_menu_items(self, diseases):
         """Обновить элементы меню заболеваний"""
         disease_menu_items = []
@@ -1466,9 +1488,7 @@ class CatalogTab(MDBottomNavigationItem):
         if hasattr(self, 'filters'):
             self.filters['type'] = self.selected_types.copy()
         
-        # Обновляем меню без закрытия
-        self._update_type_menu_items()
-    
+            
     def show_pesticide_details(self, pesticide):
         """Показать детали препарата с действующими веществами"""
         try:
@@ -1624,27 +1644,6 @@ class CatalogTab(MDBottomNavigationItem):
             card.on_release = lambda p=pesticide: self.show_pesticide_details(p)
             
             pesticides_list.add_widget(card)
-
-
-    # def edit_pesticide(self, pesticide):
-    #     """Редактировать препарат"""
-    #     self.current_editing_pesticide = pesticide
-        
-    #     # Создаем диалог редактирования
-    #     self.edit_dialog = MDDialog(
-    #         title="Редактирование препарата",  # Только здесь заголовок
-    #         type="custom",
-    #         content_cls=EditPesticideDialog(
-    #             pesticide_data=pesticide,
-    #             save_callback=self.save_pesticide_changes,
-    #             delete_callback=self.delete_pesticide,
-    #             cancel_callback=self.cancel_edit,
-    #             catalog_instance=self  # Передаем ссылку на каталог
-    #         ),
-    #         size_hint=(0.9, 0.8),  # 80% высоты окна
-    #         auto_dismiss=False
-    #     )
-    #     self.edit_dialog.open()
 
     def edit_pesticide(self, pesticide):
         """Редактирование препарата"""
@@ -1881,26 +1880,39 @@ class CatalogTab(MDBottomNavigationItem):
     def select_pesticide_type(self, pesticide_type):
         """Выбрать тип пестицида в фильтрах"""
         try:
-            if self.filter_dialog:
-                content = self.filter_dialog.content_cls
-                # Получаем текущие выбранные типы
-                current_text = content.ids.type_filter.text
-                if current_text:
-                    # Если уже есть выбранные типы, добавляем новый через запятую
-                    types_list = [t.strip() for t in current_text.split(',')]
-                    if pesticide_type not in types_list:
-                        types_list.append(pesticide_type)
-                        content.ids.type_filter.text = ', '.join(types_list)
-                    else:
-                        # Если уже выбран, убираем его
-                        types_list.remove(pesticide_type)
-                        content.ids.type_filter.text = ', '.join(types_list)
-                else:
-                    content.ids.type_filter.text = pesticide_type
+            # if self.filter_dialog:
+            #     content = self.filter_dialog.content_cls
+            #     # Получаем текущие выбранные типы
+            #     current_text = content.ids.type_filter.text
+            #     if current_text:
+            #         # Если уже есть выбранные типы, добавляем новый через запятую
+            #         types_list = [t.strip() for t in current_text.split(',')]
+            #         if pesticide_type not in types_list:
+            #             types_list.append(pesticide_type)
+            #             content.ids.type_filter.text = ', '.join(types_list)
+            #         else:
+            #             # Если уже выбран, убираем его
+            #             types_list.remove(pesticide_type)
+            #             content.ids.type_filter.text = ', '.join(types_list)
+            #     else:
+            #         content.ids.type_filter.text = pesticide_type
                 
-                if self.type_menu:
-                    self.type_menu.dismiss()
-                    self.type_menu = None
+            #     if self.type_menu:
+            #         self.type_menu.dismiss()
+            #         self.type_menu = None
+            if not self.filter_dialog:
+                return
+            content = self.filter_dialog.content_cls
+            current = content.ids.type_filter.text
+            types = [t.strip() for t in current.split(',') if t.strip()]
+            if pesticide_type in types:
+                types.remove(pesticide_type)
+            else:
+                types.append(pesticide_type)
+            content.ids.type_filter.text = ', '.join(types)
+            if self.type_menu:
+                self.type_menu.dismiss()
+                self.type_menu = None
         except Exception as e:
             print(f"❌ Ошибка выбора типа в фильтрах: {e}")
    
