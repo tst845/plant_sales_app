@@ -2,8 +2,9 @@ from kivy.lang import Builder
 from kivy.uix.screenmanager import Screen
 from kivy.properties import StringProperty, ObjectProperty
 from kivy.clock import Clock
-from kivy.metrics import dp  # добавлен импорт dp
-from kivy.core.image import Image as CoreImage
+from kivy.metrics import dp
+from kivy.uix.widget import Widget   # добавьте эту строку
+from kivy.uix.scrollview import ScrollView
 
 from kivymd.uix.button import MDRaisedButton, MDFlatButton, MDIconButton
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -13,9 +14,10 @@ from kivymd.uix.card import MDCard
 from kivymd.uix.toolbar import MDTopAppBar
 from kivymd.uix.progressbar import MDProgressBar
 
+from app.ml.inference import PlantModel
+import os 
+
 from tkinter import filedialog, Tk
-import os
-import random
 
 Builder.load_string('''
 #:import dp kivy.metrics.dp
@@ -28,10 +30,33 @@ Builder.load_string('''
         spacing: dp(10)
         padding: dp(10)
         
-        MDTopAppBar:
-            title: "Диагностика заболеваний"
-            elevation: 4
-            right_action_items: [["help-circle-outline", lambda x: root.show_help()]]
+        # Кастомная шапка
+        MDBoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: dp(40)                      # чуть больше для удобства
+            padding: [dp(10), 0, dp(10), 0]
+            spacing: dp(10)
+            md_bg_color: app.theme_cls.primary_color    # тёмно-зелёный (можно поменять)
+            
+            MDLabel:
+                text: "Диагностика заболеваний"
+                font_style: "H6"
+                size_hint_x: 1
+                size_hint_y: 1                  # занимает всю высоту
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)       # белый текст на зелёном
+                halign: "center"
+                valign: "middle"
+            
+            MDIconButton:
+                icon: "help-circle-outline"
+                theme_icon_color: "Custom"
+                icon_color: (0, 0, 0, 1)       # белая иконка
+                size_hint: None, None
+                size: dp(32), dp(32)           # увеличил размер для лучшего касания
+                pos_hint: {"center_y": 0.5}    # центрирование внутри контейнера
+                on_release: root.show_help()
         
         # Область для изображения с крестиком (изначально крестик скрыт)
         RelativeLayout:
@@ -41,7 +66,7 @@ Builder.load_string('''
                 orientation: "vertical"
                 size_hint: 1, 1
                 padding: dp(10)
-                elevation: 4
+                elevation: 1
                 md_bg_color: (0.95, 0.95, 0.95, 1)
                 
                 MDBoxLayout:
@@ -132,7 +157,10 @@ class CameraScreen(Screen):
         super().__init__(**kwargs)
         self.progress_interval = None
         self.opening_dialog = False          # блокировка повторного открытия диалога
-        self.reset_in_progress = False       # блокировка повторного сброса
+        self.reset_in_progress = False # блокировка повторного сброса
+        self.model = PlantModel()    
+        # Загружаем модели сразу после запуска (отложенно, чтобы не тормозить UI)
+        Clock.schedule_once(lambda dt: self.model.load_models(), 0.5)  
     
     def _add_action_buttons(self):
         """Добавить кнопки действий в контейнер"""
@@ -206,6 +234,7 @@ class CameraScreen(Screen):
 
     def load_image(self, file_path):
         """Загрузить изображение в виджет"""
+        self.original_image_path = file_path   # запомнили
         if self.selected_image_path == file_path:
             return
         self.selected_image_path = file_path
@@ -245,49 +274,145 @@ class CameraScreen(Screen):
             print("🔄 Изображение сброшено")
         finally:
             self.reset_in_progress = False
+        # Если есть временный файл маски, удалить
+        if hasattr(self, 'current_masked_path') and self.current_masked_path:
+            try:
+                os.remove(self.current_masked_path)
+            except:
+                pass
+            self.current_masked_path = None
     
     def start_analysis(self):
-        """Запуск симуляции анализа"""
-        if self.progress_interval is not None:
-            print("⚠️ Анализ уже запущен")
-            return
+        """Запуск анализа через модель"""
         if not self.selected_image_path:
             self.show_message("Ошибка", "Сначала выберите изображение")
             return
-        print("🧠 Начинаем анализ")
-        # Показать прогресс
+        if not self.model.loaded:
+            # Попытаемся загрузить модели (можно сделать при старте приложения)
+            Clock.schedule_once(lambda dt: self.load_models_and_analyze(), 0)
+        else:
+            self._run_inference()
+    
+    def load_models_and_analyze(self):
+        if not self.model.load_models():
+            self.show_error("Ошибка модели", "Не удалось загрузить ONNX модели")
+            return
+        self._run_inference()
+
+    def _run_inference(self):
+        """Запуск инференса в отдельном потоке"""
+        from threading import Thread
         self.ids.status_box.height = dp(30)
         self.ids.status_box.opacity = 1
         self.ids.progress_bar.value = 0
-        self.ids.status_label.text = "Обработка..."
-        self.progress_interval = Clock.schedule_interval(self.update_progress, 0.5)
-    
-    def update_progress(self, dt):
-        progress = self.ids.progress_bar.value + 25
-        if progress >= 100:
-            self.ids.progress_bar.value = 100
+        self.ids.status_label.text = "Загрузка моделей..."
+
+        def update_progress(value):
+            Clock.schedule_once(lambda dt: self._update_progress_ui(value))
+
+        def inference_thread():
+            try:
+                result = self.model.predict(self.selected_image_path, progress_callback=update_progress)
+                Clock.schedule_once(lambda dt: self.show_analysis_result(result))
+            except Exception as ex:
+                print(f"Ошибка инференса: {ex}")
+                Clock.schedule_once(lambda dt: self.show_error("Ошибка", str(ex)))
+
+        self.thread = Thread(target=inference_thread, daemon=True)
+        self.thread.start()
+
+    def _update_progress_ui(self, value):
+        self.ids.progress_bar.value = value * 100
+        if value < 0.2:
+            self.ids.status_label.text = "Сегментация листа..."
+        elif value < 0.5:
+            self.ids.status_label.text = "Анализ поражений..."
+        elif value < 0.9:
+            self.ids.status_label.text = "Классификация..."
+        else:
             self.ids.status_label.text = "Готово!"
-            if self.progress_interval:
-                Clock.unschedule(self.progress_interval)
-                self.progress_interval = None
-            Clock.schedule_once(lambda dt: self.finish_analysis(), 0.5)
-        else:
-            self.ids.progress_bar.value = progress
-            self.ids.status_label.text = f"Обработка... {int(progress)}%"
-            
-    def finish_analysis(self):
-        """Завершение анализа — показываем случайный результат, НЕ сбрасываем изображение"""
-        if self.progress_interval:
-            Clock.unschedule(self.progress_interval)
-            self.progress_interval = None
-        result_type = random.choice(["success", "unknown", "error"])
-        if result_type == "success":
-            self.show_results()
-        elif result_type == "unknown":
-            self.show_unknown_result()
-        else:
-            self.show_error("Модель не загружена", "Не удалось загрузить модель нейросети")
-        # Изображение остаётся на экране   
+
+    def show_analysis_result(self, result):
+        """Показать результат анализа в нижней части экрана"""
+        self.disable_buttons()  # блокируем кнопки
+        # Подменяем картинку на размеченную
+        if 'masked_image_path' in result and result['masked_image_path']:
+            self.current_masked_path = result['masked_image_path']
+            self.ids.selected_image.source = result['masked_image_path']
+            self.ids.selected_image.reload()
+        # Скрываем прогресс-бар, если он был виден
+        self.ids.status_box.height = 0
+        self.ids.status_box.opacity = 0
+
+        # Создаём контейнер результата
+        result_layout = MDBoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(210),           # уменьшенная высота (примерно 1/5 от 640)
+            padding=dp(16),
+            spacing=dp(8),
+            md_bg_color=(1, 1, 1, 1),  # белый полупрозрачный фон
+            pos_hint={'bottom': 1},
+        )
+
+        # Заголовок
+        title = MDLabel(
+            text="Результат диагностики",
+            font_style="Subtitle1",
+            theme_text_color="Custom",
+            text_color=(0, 0, 0, 1),   # чёрный цвет
+            size_hint_y=None,
+            height=dp(30),
+            halign="center"
+        )
+        # Вместо обычного MDLabel используем ScrollView + MDLabel для длинного текста
+        from kivy.uix.scrollview import ScrollView
+        text_content = MDLabel(
+            text=f"Вид: {result['species']}\n\nБолезнь: {result['disease']}",
+            theme_text_color="Custom",
+            text_color=(0, 0, 0, 1),
+            size_hint_y=None,
+            halign="left",
+            valign="top"
+        )
+        text_content.bind(texture_size=text_content.setter('size'))
+        scroll = ScrollView(size_hint_y=1, do_scroll_x=False)
+        scroll.add_widget(text_content)
+
+        # вместо прямого добавления text_content
+
+        # Кнопка закрытия
+        # Вместо прямого добавления close_btn:
+        button_box = MDBoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(40),
+            spacing=dp(10)
+        )
+        button_box.add_widget(Widget())  # пустой виджет слева для отступа
+        close_btn = MDRaisedButton(
+            text="Закрыть",
+            size_hint_x=0.3,
+            on_release=lambda x: self.remove_result_widget(result_layout)
+        )
+        button_box.add_widget(close_btn)
+
+        result_layout.add_widget(title)
+        result_layout.add_widget(scroll)
+        result_layout.add_widget(button_box)
+
+        self.add_widget(result_layout)
+        self.current_result_widget = result_layout
+
+    def remove_result_widget(self, widget):
+        """Удалить виджет результата"""
+        if widget.parent:
+            widget.parent.remove_widget(widget)
+        # Возвращаем исходное изображение
+        if hasattr(self, 'original_image_path') and self.original_image_path:
+            self.ids.selected_image.source = self.original_image_path
+            self.ids.selected_image.reload()
+        self.enable_buttons()
            
     def show_results(self):
         """Показать результаты (заглушка)"""
@@ -299,6 +424,25 @@ class CameraScreen(Screen):
         dialog.open()
         # self.reset_image()
     
+    def disable_buttons(self):
+        """Отключить все управляющие кнопки"""
+        self.ids.camera_btn.disabled = True
+        self.ids.gallery_btn.disabled = True
+        self.ids.clear_btn.disabled = True
+        # Отключаем кнопки в контейнере action_buttons (Анализировать, Сбросить)
+        for child in self.ids.action_buttons.children:
+            if hasattr(child, 'disabled'):
+                child.disabled = True
+
+    def enable_buttons(self):
+        """Включить все управляющие кнопки"""
+        self.ids.camera_btn.disabled = False
+        self.ids.gallery_btn.disabled = False
+        self.ids.clear_btn.disabled = False
+        for child in self.ids.action_buttons.children:
+            if hasattr(child, 'disabled'):
+                child.disabled = False
+
     def show_unknown_result(self):
         dialog = MDDialog(
             title="Не удалось определить",
@@ -332,3 +476,10 @@ class CameraScreen(Screen):
             buttons=[MDFlatButton(text="OK", on_release=lambda x: dialog.dismiss())]
         )
         dialog.open()
+
+    def cleanup_temp_files(self):
+        if hasattr(self, 'current_masked_path') and self.current_masked_path:
+            try:
+                os.remove(self.current_masked_path)
+            except:
+                pass
