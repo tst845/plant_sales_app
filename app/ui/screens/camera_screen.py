@@ -462,13 +462,110 @@ class CameraScreen(Screen):
         # self.reset_image()
     
     def show_help(self):
-        dialog = MDDialog(
-            title="Справка",
-            text="1. Нажмите «Галерея» и выберите фото растения.\n2. Нажмите «Анализировать».\n3. Получите результат.",
-            buttons=[MDFlatButton(text="OK", on_release=lambda x: dialog.dismiss())]
+        """Показать полный справочник диагнозов"""
+        help_text = (
+            "1. Нажмите «Галерея» и выберите фото растения.\n"
+            "2. Нажмите «Анализировать».\n"
+            "3. Получите результат.\n\n"
+            " Диагностируемые виды и болезни:\n\n"
+            "Яблоня:\n"
+            "  • Альтернариоз яблони\n"
+            "  • Бурая пятнистость яблони\n"
+            "  • Парша\n"
+            "  • Парша яблони\n"
+            "  • Ржавчина можжевельника-яблони\n"
+            "  • Серая пятнистость яблони\n"
+            "  • Чёрная гниль\n\n"
+            "Сладкий перец:\n"
+            "  • Бактериальная пятнистость перца\n\n"
+            "Вишня:\n"
+            "  • Мучнистая роса\n\n"
+            "Кукуруза:\n"
+            "  • Обычная ржавчина кукурузы\n"
+            "  • Северная листовая пятнистость кукурузы\n"
+            "  • Серая листовая пятнистость кукурузы\n\n"
+            "Виноград:\n"
+            "  • Листовая пятнистость\n"
+            "  • Чёрная гниль\n"
+            "  • Эска\n\n"
+            "Персик:\n"
+            "  • Бактериальная пятнистость персика\n\n"
+            "Картофель:\n"
+            "  • Фитофтороз поздний\n"
+            "  • Фитофтороз ранний\n\n"
+            "Тыква:\n"
+            "  • Мучнистая роса\n\n"
+            "Клубника:\n"
+            "  • Листовой ожог\n\n"
+            "Томат:\n"
+            "  • Бактериальная пятнистость томата\n"
+            "  • Вирус желтой курчавости листьев томата\n"
+            "  • Вирус мозаики томата\n"
+            "  • Листовая плесень томата\n"
+            "  • Паутинный клещ\n"
+            "  • Септориоз томата\n"
+            "  • Фитофтороз поздний\n"
+            "  • Фитофтороз ранний\n"
+            "  • Целевая пятнистость\n\n"
+            "В случае если модель не может опознать растение, в ответе вы можете увидеть:\n"
+            "  • Неизвестный объект, Болезнь - Неизвестно\n"
+            "  • Неизвестное растение\n"
         )
+
+        # Контейнер содержимого
+        content = MDBoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(490),
+            spacing=dp(8),
+            padding=dp(17),
+            md_bg_color=(0.96, 0.96, 0.96, 1),
+        )
+
+        label = MDLabel(
+            text=help_text,
+            theme_text_color="Custom",
+            text_color=(0, 0, 0, 1),
+            size_hint_y=None,
+            halign="left",
+            valign="top",
+            font_style="Caption",
+        )
+        label.bind(texture_size=label.setter('size'))
+
+        scroll = ScrollView(size_hint_y=1, do_scroll_x=False)
+        scroll.add_widget(label)
+        content.add_widget(scroll)
+
+        # Создаём диалог
+        dialog = MDDialog(
+            title="Справочная информация",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(
+                    text="Закрыть",
+                    theme_text_color="Custom",
+                    text_color=(0, 0.7, 0, 1),  # зелёный
+                    on_release=lambda x: dialog.dismiss()
+                )
+            ],
+            size_hint=(0.95, 0.85)
+        )
+
+        # Принудительно меняем цвет заголовка (обходим ограничения)
+        # Ищем дочерний виджет с текстом заголовка
+        def set_title_color(dialog_inst, dt):
+            for child in dialog_inst.children:
+                if hasattr(child, 'title') and hasattr(child, 'text_color'):
+                    child.theme_text_color = "Custom"
+                    child.text_color = (0, 0.7, 0, 1)
+                    break
+        Clock.schedule_once(lambda dt: set_title_color(dialog, dt), 0.1)
+
         dialog.open()
     
+
     def show_message(self, title, message):
         dialog = MDDialog(
             title=title,

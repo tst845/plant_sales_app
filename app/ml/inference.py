@@ -41,6 +41,52 @@ idx_to_disease = {
     26: 'unknown'
 }
 
+# Русские названия для отображения
+species_ru = {
+    0: 'Яблоня',
+    1: 'Сладкий перец',
+    2: 'Вишня',
+    3: 'Кукуруза',
+    4: 'Виноград',
+    5: 'Персик',
+    6: 'Картофель',
+    7: 'Тыква',
+    8: 'Клубника',
+    9: 'Томат',
+    10: 'Неизвестный объект',
+    11: 'Неизвестное растение'
+}
+
+disease_ru = {
+    0: 'Альтернариоз яблони',
+    1: 'Парша яблони',
+    2: 'Бактериальная пятнистость персика',
+    3: 'Бактериальная пятнистость перца',
+    4: 'Бактериальная пятнистость томата',
+    5: 'Чёрная гниль',
+    6: 'Бурая пятнистость яблони',
+    7: 'Ржавчина можжевельника-яблони',
+    8: 'Обычная ржавчина кукурузы',
+    9: 'Фитофтороз ранний',
+    10: 'Эска (чёрная пятнистость)',
+    11: 'Серая листовая пятнистость кукурузы',
+    12: 'Серая пятнистость яблони',
+    13: 'Здоровое растение',
+    14: 'Фитофтороз поздний',
+    15: 'Листовая пятнистость (изариопсис)',
+    16: 'Листовой ожог',
+    17: 'Листовая плесень томата',
+    18: 'Северная листовая пятнистость кукурузы',
+    19: 'Мучнистая роса',
+    20: 'Парша',
+    21: 'Септориоз томата',
+    22: 'Паутинный клещ',
+    23: 'Целевая пятнистость',
+    24: 'Вирус желтой курчавости листьев томата',
+    25: 'Вирус мозаики томата',
+    26: 'Неизвестное заболевание'
+}
+
 THRESHOLD = 0.95
 
 class PlantModel:
@@ -169,20 +215,26 @@ class PlantModel:
         species_conf = species_probs[0, species_top1]
         disease_top1 = np.argmax(disease_probs[0])
         disease_conf = disease_probs[0, disease_top1]
-
+        # ==== русскоязычные названия из локального кода 
+        species_text_ru = species_ru.get(species_top1, idx_to_species[species_top1])
         # Формирование текста по пороговой логике
         if species_conf >= THRESHOLD:
-            species_text = f"{idx_to_species[species_top1]} ({species_conf:.3f})"
+            # species_text = f"{idx_to_species[species_top1]} ({species_conf:.3f})"
+            species_text = f"{species_text_ru} ({species_conf:.3f})"
         else:
             top3_idx = np.argsort(species_probs[0])[::-1][:3]
-            top3 = [f"{idx_to_species[i]}: {species_probs[0,i]:.3f}" for i in top3_idx]
+            # top3 = [f"{idx_to_species[i]}: {species_probs[0,i]:.3f}" for i in top3_idx]
+            top3 = [f"{species_ru.get(i, idx_to_species[i])}: {species_probs[0,i]:.3f}" for i in top3_idx]
             species_text = "не уверен, возможные варианты:\n" + "\n".join(top3)
 
+        disease_text_ru = disease_ru.get(disease_top1, idx_to_disease[disease_top1])
         if disease_conf >= THRESHOLD:
-            disease_text = f"{idx_to_disease[disease_top1]} ({disease_conf:.3f})"
+            # disease_text = f"{idx_to_disease[disease_top1]} ({disease_conf:.3f})"
+            disease_text = f"{disease_text_ru} ({disease_conf:.3f})"
         else:
             top3_idx = np.argsort(disease_probs[0])[::-1][:3]
-            top3 = [f"{idx_to_disease[i]}: {disease_probs[0,i]:.3f}" for i in top3_idx]
+            # top3 = [f"{idx_to_disease[i]}: {disease_probs[0,i]:.3f}" for i in top3_idx]
+            top3 = [f"{disease_ru.get(i, idx_to_disease[i])}: {disease_probs[0,i]:.3f}" for i in top3_idx]
             disease_text = "не уверен, возможные варианты:\n" + "\n".join(top3)
 
         if progress_callback:

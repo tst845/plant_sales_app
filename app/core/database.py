@@ -55,13 +55,21 @@ class DatabaseManager:
                 substance_name TEXT NOT NULL UNIQUE
             )
         ''')
-        
+                # -- Таблица классов видов (растений)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS species_classes (
+                class_index INTEGER PRIMARY KEY,      -- индекс из модели (0..11)
+                name_en TEXT NOT NULL,                -- английское название (Apple, Tomato...)
+                name_ru TEXT NOT NULL                 -- русское название (Яблоня, Томат...)
+            )
+        ''')
 
-        # 4. Таблица классов заболеваний для нейросети (упрощенная)
+            # -- Таблица классов болезней
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS disease_classes (
-                class_index INTEGER PRIMARY KEY,  -- Индекс из нейросети как PRIMARY KEY
-                class_name TEXT NOT NULL UNIQUE   -- Название заболевания
+                class_index INTEGER PRIMARY KEY,      -- индекс из модели (0..26)
+                name_en TEXT NOT NULL,                -- английское название (apple scab, ...)
+                name_ru TEXT NOT NULL                 -- русское название (Парша яблони, ...)
             )
         ''')
 
@@ -182,8 +190,48 @@ class DatabaseManager:
         self.connection.commit()
         print("✅ Таблицы базы данных созданы")
         # Загружаем классы заболеваний из файла
-        self._load_disease_classes_from_file()
+        self._load_classes_from_files()
     
+    def _load_classes_from_files(self):
+        """Загружает species_classes и disease_classes из файлов в папке assets"""
+        import csv
+        from pathlib import Path
+        
+        base_dir = Path(__file__).parent.parent.parent
+        species_file = base_dir / "app" / "assets" / "data" / "species_classes.txt"
+        disease_file = base_dir / "app" / "assets" / "data" / "disease_classes.txt"
+        
+        # Загрузка видов
+        if species_file.exists():
+            cursor = self.connection.cursor()
+            cursor.execute('DELETE FROM species_classes')
+            with open(species_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) == 3:
+                        idx, en, ru = parts
+                        cursor.execute('INSERT INTO species_classes (class_index, name_en, name_ru) VALUES (?, ?, ?)', (idx, en, ru))
+            self.connection.commit()
+            print("✅ Загружены виды из файла")
+        else:
+            print("⚠️ Файл species_classes.txt не найден")
+        
+        # Загрузка Заболеваний
+        if disease_file.exists():
+            cursor = self.connection.cursor()
+            cursor.execute('DELETE FROM disease_classes')
+            with open(disease_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) == 3:
+                        idx, en, ru = parts
+                        cursor.execute('INSERT INTO disease_classes (class_index, name_en, name_ru) VALUES (?, ?, ?)', (idx, en, ru))
+            self.connection.commit()
+            print("✅ Загружены виды из файла")
+        else:
+            print("⚠️ Файл disease_classes.txt не найден")
+        
+
     def _insert_sample_data(self):
      """Вставка тестовых данных - ОСНОВНАЯ ВЕРСИЯ (пустая)"""
     # В основной версии не заполняем тестовыми данными
