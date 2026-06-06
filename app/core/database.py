@@ -186,6 +186,10 @@ class DatabaseManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        #  индексы в БД
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pesticides_name ON pesticides(name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pesticides_price ON pesticides(price)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pesticides_type ON pesticides(pesticide_type_id)")
         
         self.connection.commit()
         print("✅ Таблицы базы данных созданы")
@@ -382,116 +386,155 @@ class DatabaseManager:
             result.append(dict(row))
         
         return result
-    
-def search_pesticides(self, query, filters=None):
-    """Поиск препаратов с фильтрами"""
-    print(f"Поиск по '{query}', фильтры {filters} пока не применяются")
-    cursor = self.connection.cursor()
-    
-    sql = '''
-        SELECT DISTINCT p.*
-        FROM pesticides p
-        LEFT JOIN pesticide_active_substances pas ON p.id = pas.pesticide_id
-        LEFT JOIN active_substances as ON pas.substance_id = as.id
-        LEFT JOIN pesticide_diseases pd ON p.id = pd.pesticide_id
-        LEFT JOIN diseases d ON pd.disease_id = d.id
-        WHERE (p.name LIKE ? OR as.substance_name LIKE ? OR d.disease_name LIKE ?)
-    '''
-    params = [f'%{query}%', f'%{query}%', f'%{query}%']
-    
-    cursor.execute(sql, params)
-    return cursor.fetchall()
-    
-def close(self):
-        """Закрытие соединения с БД"""
-        if self.connection:
-            self.connection.close()
 
-def _load_disease_classes_from_file(self):
-    """Загрузка классов заболеваний из TXT файла"""
-    try:
-        # Путь к файлу с классами
-        classes_file = self.database_path.parent / "disease_classes.txt"
+    def get_pesticides_paginated(self, offset=0, limit=20, search='', filters=None, sort_by='name', sort_order='asc'):
+        cursor = self.connection.cursor()
+        sql = """
+            SELECT p.*, pt.type_name as pesticide_type
+            FROM pesticides p
+            LEFT JOIN pesticide_types pt ON p.pesticide_type_id = pt.id
+            WHERE 1=1
+        """
+        params = []
+        if search:
+            sql += " AND (p.name LIKE ? OR p.description LIKE ?)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        if filters and filters.get('type'):
+            # предполагаем, что filters['type'] - это список
+            placeholders = ','.join(['?'] * len(filters['type']))
+            sql += f" AND pt.type_name IN ({placeholders})"
+            params.extend(filters['type'])
+        # Формируем ORDER BY без лишних символов
+        if sort_by == 'name':
+            order = f"ORDER BY p.name {sort_order}"
+        else:  # price
+            order = f"ORDER BY p.price {sort_order}"
+        sql += f" {order} LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        print("DEBUG SQL:", sql)  # для отладки
+        print("DEBUG PARAMS:", params)
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            # получаем действующие вещества
+            sub_sql = "SELECT GROUP_CONCAT(a.substance_name || ' ' || pas.concentration, '||') as substances FROM pesticide_active_substances pas JOIN active_substances a ON pas.substance_id = a.id WHERE pas.pesticide_id = ?"
+            cursor.execute(sub_sql, (d['id'],))
+            subs_row = cursor.fetchone()
+            d['substances'] = subs_row[0] if subs_row and subs_row[0] else ''
+            result.append(d)
+        return result
+
+    def search_pesticides(self, query, filters=None):
+        """Поиск препаратов с фильтрами"""
+        print(f"Поиск по '{query}', фильтры {filters} пока не применяются")
+        cursor = self.connection.cursor()
         
-        if not classes_file.exists():
-            print("⚠️ Файл disease_classes.txt не найден, используются классы по умолчанию")
+        sql = '''
+            SELECT DISTINCT p.*
+            FROM pesticides p
+            LEFT JOIN pesticide_active_substances pas ON p.id = pas.pesticide_id
+            LEFT JOIN active_substances as ON pas.substance_id = as.id
+            LEFT JOIN pesticide_diseases pd ON p.id = pd.pesticide_id
+            LEFT JOIN diseases d ON pd.disease_id = d.id
+            WHERE (p.name LIKE ? OR as.substance_name LIKE ? OR d.disease_name LIKE ?)
+        '''
+        params = [f'%{query}%', f'%{query}%', f'%{query}%']
+        
+        cursor.execute(sql, params)
+        return cursor.fetchall()
+        
+    def close(self):
+            """Закрытие соединения с БД"""
+            if self.connection:
+                self.connection.close()
+
+    def _load_disease_classes_from_file(self):
+        """Загрузка классов заболеваний из TXT файла"""
+        try:
+            # Путь к файлу с классами
+            classes_file = self.database_path.parent / "disease_classes.txt"
+            
+            if not classes_file.exists():
+                print("⚠️ Файл disease_classes.txt не найден, используются классы по умолчанию")
+                self._create_default_disease_classes()
+                return
+            
+            cursor = self.connection.cursor()
+            
+            # Очищаем таблицу перед загрузкой новых данных
+            cursor.execute('DELETE FROM disease_classes')
+            
+            # Читаем файл
+            with open(classes_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):  # Пропускаем пустые строки и комментарии
+                        parts = line.split(' ', 1)  # Разделяем по первому пробелу
+                        if len(parts) == 2:
+                            class_index = int(parts[0])
+                            class_name = parts[1].replace('_', ' ')  # Заменяем подчеркивания на пробелы
+                            
+                            cursor.execute('''
+                                INSERT INTO disease_classes (class_index, class_name)
+                                VALUES (?, ?)
+                            ''', (class_index, class_name))
+            
+            self.connection.commit()
+            print(f"✅ Классы заболеваний загружены из файла: {classes_file.name}")
+            
+        except Exception as e:
+            print(f"❌ Ошибка загрузки классов заболеваний: {e}")
             self._create_default_disease_classes()
-            return
-        
-        cursor = self.connection.cursor()
-        
-        # Очищаем таблицу перед загрузкой новых данных
-        cursor.execute('DELETE FROM disease_classes')
-        
-        # Читаем файл
-        with open(classes_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#'):  # Пропускаем пустые строки и комментарии
-                    parts = line.split(' ', 1)  # Разделяем по первому пробелу
-                    if len(parts) == 2:
-                        class_index = int(parts[0])
-                        class_name = parts[1].replace('_', ' ')  # Заменяем подчеркивания на пробелы
-                        
-                        cursor.execute('''
-                            INSERT INTO disease_classes (class_index, class_name)
-                            VALUES (?, ?)
-                        ''', (class_index, class_name))
-        
-        self.connection.commit()
-        print(f"✅ Классы заболеваний загружены из файла: {classes_file.name}")
-        
-    except Exception as e:
-        print(f"❌ Ошибка загрузки классов заболеваний: {e}")
-        self._create_default_disease_classes()
 
-def _create_default_disease_classes(self):
-    """Создание классов заболеваний по умолчанию"""
-    try:
-        cursor = self.connection.cursor()
-        
-        default_classes = [
-            (0, 'Здоровое растение'),
-            (1, 'Мучнистая роса'),
-            (2, 'Парша'),
-            (3, 'Ржавчина'),
-            (4, 'Фитофтороз'),
-            (5, 'Антракноз'),
-            (6, 'Бактериальная пятнистость'),
-            (7, 'Вирус мозаики')
-        ]
-        
-        cursor.executemany('''
-            INSERT OR REPLACE INTO disease_classes (class_index, class_name)
-            VALUES (?, ?)
-        ''', default_classes)
-        
-        self.connection.commit()
-        print("✅ Созданы классы заболеваний по умолчанию")
-        
-    except Exception as e:
-        print(f"❌ Ошибка создания классов по умолчанию: {e}")
+    def _create_default_disease_classes(self):
+        """Создание классов заболеваний по умолчанию"""
+        try:
+            cursor = self.connection.cursor()
+            
+            default_classes = [
+                (0, 'Здоровое растение'),
+                (1, 'Мучнистая роса'),
+                (2, 'Парша'),
+                (3, 'Ржавчина'),
+                (4, 'Фитофтороз'),
+                (5, 'Антракноз'),
+                (6, 'Бактериальная пятнистость'),
+                (7, 'Вирус мозаики')
+            ]
+            
+            cursor.executemany('''
+                INSERT OR REPLACE INTO disease_classes (class_index, class_name)
+                VALUES (?, ?)
+            ''', default_classes)
+            
+            self.connection.commit()
+            print("✅ Созданы классы заболеваний по умолчанию")
+            
+        except Exception as e:
+            print(f"❌ Ошибка создания классов по умолчанию: {e}")
 
 
-def export_disease_classes_to_file(self):
-    """Экспорт классов заболеваний в TXT файл"""
-    try:
-        classes_file = self.database_path.parent / "disease_classes_export.txt"
-        
-        cursor = self.connection.cursor()
-        cursor.execute('SELECT class_index, class_name FROM disease_classes ORDER BY class_index')
-        classes = cursor.fetchall()
-        
-        with open(classes_file, 'w', encoding='utf-8') as f:
-            for class_item in classes:
-                # Заменяем пробелы на подчеркивания для удобства
-                class_name = class_item[1].replace(' ', '_')
-                f.write(f"{class_item[0]} {class_name}\n")
-        
-        print(f"✅ Классы заболеваний экспортированы в: {classes_file.name}")
-        return str(classes_file)
-        
-    except Exception as e:
-        print(f"❌ Ошибка экспорта классов: {e}")
-        return None
+    def export_disease_classes_to_file(self):
+        """Экспорт классов заболеваний в TXT файл"""
+        try:
+            classes_file = self.database_path.parent / "disease_classes_export.txt"
+            
+            cursor = self.connection.cursor()
+            cursor.execute('SELECT class_index, class_name FROM disease_classes ORDER BY class_index')
+            classes = cursor.fetchall()
+            
+            with open(classes_file, 'w', encoding='utf-8') as f:
+                for class_item in classes:
+                    # Заменяем пробелы на подчеркивания для удобства
+                    class_name = class_item[1].replace(' ', '_')
+                    f.write(f"{class_item[0]} {class_name}\n")
+            
+            print(f"✅ Классы заболеваний экспортированы в: {classes_file.name}")
+            return str(classes_file)
+            
+        except Exception as e:
+            print(f"❌ Ошибка экспорта классов: {e}")
+            return None
 

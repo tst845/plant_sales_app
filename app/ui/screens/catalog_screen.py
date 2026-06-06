@@ -18,6 +18,11 @@ from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.boxlayout import BoxLayout
 from kivy.properties import ObjectProperty
 from kivymd.app import MDApp
+from kivy.clock import Clock
+from kivy.properties import DictProperty
+from kivy.animation import Animation
+
+
 
 Builder.load_string('''
 <CatalogTab>:
@@ -84,11 +89,22 @@ Builder.load_string('''
                 on_release: root.open_filters_menu()        
 
         # Список препаратов
-        ScrollView:
-            MDList:
-                id: pesticides_list
-                padding: '10dp'
-                spacing: '10dp'
+        RecycleView:
+            id: pesticide_recycle
+            size_hint_y: 1
+            viewclass: 'PesticideCard'
+            bar_width: dp(5)
+            scroll_type: ['bars', 'content']
+            RecycleBoxLayout:
+                id: recycle_layout
+                default_size: None, dp(80)
+                default_size_hint: 1, None
+                size_hint_y: None
+                height: self.minimum_height
+                orientation: 'vertical'
+                spacing: dp(5)
+                padding: dp(10)        
+
     # Кнопка экспорта в Excel (слева)
     MDFloatingActionButton:
         icon: "file-excel"
@@ -113,10 +129,10 @@ Builder.load_string('''
 
 <PesticideCard>:
     orientation: 'vertical'
-    padding: '12dp'
-    spacing: '6dp'
+    padding: ['8dp', '4dp', '8dp', '6dp']   # уменьшены вертикальные отступы
+    spacing: '4dp'
     size_hint_y: None
-    height: '120dp'
+    height: '80dp'
     ripple_behavior: True
     
     MDBoxLayout:
@@ -127,12 +143,12 @@ Builder.load_string('''
         MDBoxLayout:
             orientation: 'vertical'
             size_hint_x: 0.7
-            spacing: '4dp'
+            spacing: '2dp'
             
             MDLabel:
                 id: name_label
                 text: root.pesticide_name
-                font_style: 'H6'
+                font_style: 'Subtitle1'
                 theme_text_color: 'Primary'
                 size_hint_y: None
                 height: self.texture_size[1]
@@ -145,8 +161,9 @@ Builder.load_string('''
             MDLabel:
                 id: substance_label
                 text: f"ДВ: {root.pesticide_substance}"
-                font_style: 'Body2'
-                theme_text_color: 'Secondary'
+                font_style: 'Caption'
+                theme_text_color: 'Custom'
+                text_color: (0, 0.4, 0, 1)      # тёмно-зелёный (R,G,B,A)
                 size_hint_y: None
                 height: self.texture_size[1]
                 halign: 'left'
@@ -586,6 +603,10 @@ Builder.load_string('''
 ''')
 
 
+class PesticideCardData(dict):
+    # Просто обёртка, чтобы использовать словари как данные
+    pass
+
 class PesticideCard(MDCard):
     pesticide_name = StringProperty("")
     pesticide_substance = StringProperty("")
@@ -593,9 +614,26 @@ class PesticideCard(MDCard):
     pesticide_price = StringProperty("")
     pesticide_packaging = StringProperty("")
     pesticide_application_rate = StringProperty("")
-    
+    full_data = ObjectProperty(None)
+
     def __init__(self, **kwargs):
+        print("Создаётся PesticideCard")
         super().__init__(**kwargs)
+        # self.block_scroll = False
+        # print("Атрибуты:", dir(self))
+
+    def apply_data(self, data_dict):
+        """Обновить карточку из словаря данных"""
+        self.pesticide_name = data_dict.get('name', '')
+        self.pesticide_description = data_dict.get('description', '')
+        self.pesticide_price = data_dict.get('price', '')
+        self.pesticide_packaging = data_dict.get('packaging', '')
+        self.pesticide_application_rate = data_dict.get('application_rate', '')
+        self.pesticide_substance = data_dict.get('substances', '')
+        # сохраним id и другие данные для обработчика on_release
+        self.pesticide_data = data_dict
+    
+        
     def on_pesticide_name(self, instance, value):
         # Если название пустое, показываем "Без названия"
         if not value:
@@ -838,7 +876,13 @@ class EditPesticideDialog(MDBoxLayout):
             
 class CatalogTab(MDBottomNavigationItem):
     app = ObjectProperty(None)
-    
+    restoring_scroll = BooleanProperty(False) # Добавьте флаг, чтобы on_recycle_scroll игнорировал изменения, вызванные программной установкой scroll_y:
+    visible_count = 0          # сколько элементов показываем в RecycleView
+    data = []                  # все загруженные элементы (полные словари)
+    CARD_HEIGHT = dp(80)       # высота одной карточки
+    SPACING = dp(5)            # spacing из разметки
+    ITEM_HEIGHT = CARD_HEIGHT + SPACING  # полная высота, занимаемая одним элементом в лейауте
+    LOAD_THRESHOLD = ITEM_HEIGHT * 2     # начинаем подгрузку, когда до конца осталось 2 карточки
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
@@ -860,6 +904,14 @@ class CatalogTab(MDBottomNavigationItem):
         self.selected_types = []
         self.selected_cultures = []
         self.selected_diseases = []
+
+        self.data = []                 # все загруженные препараты (словари)
+        self.current_offset = 0
+        self.saved_scroll_offset = 0.0
+        self.limit = 10
+        self.loading = False
+        self.is_end_reached = False
+        self.search_query = ""
         
         # Инициализация test_pesticides (ЗДЕСЬ ИСПРАВЛЕНИЕ!)
         self.test_pesticides = self._get_test_pesticides()
@@ -871,20 +923,196 @@ class CatalogTab(MDBottomNavigationItem):
             from datetime import datetime
         except ImportError as e:
             print(f"⚠️ Библиотеки для экспорта не установлены: {e}")
+    
+    def refresh_data(self):
+        self.current_offset = 0
+        self.data = []
+        self.visible_count = 0
+        self.is_end_reached = False
+        self.loading = False
+        rv = self.ids.pesticide_recycle
+        rv.data = []
+        rv.scroll_y = 1.0
+        self._perform_load()
+    
+    def load_more(self):
+    # Предотвращаем множественные вызовы
+        if self.loading or self.is_end_reached:
+            return
+        self._perform_load()
+        
+    def _perform_load(self):
+        if self.loading or self.is_end_reached:
+            return
+        self.loading = True
+        print(f"Загрузка offset={self.current_offset}, limit={self.limit}")
 
+        rv = self.ids.pesticide_recycle
+        viewport_height = rv.height
+
+        # Сохраняем пиксельное смещение перед изменением данных
+        if self.visible_count > 0 and rv.children:
+            content_height = rv.children[0].height
+            if content_height > viewport_height:
+                self.saved_scroll_offset = (1.0 - rv.scroll_y) * (content_height - viewport_height)
+            else:
+                self.saved_scroll_offset = 0.0
+        else:
+            self.saved_scroll_offset = 0.0
+
+        try:
+            app = MDApp.get_running_app()
+            new_items = app.db.get_pesticides_paginated(
+                offset=self.current_offset,
+                limit=self.limit,
+                search=self.search_query,
+                filters=self.filters,
+                sort_by=self.sort_settings['criteria'],
+                sort_order=self.sort_settings['order']
+            )
+            if not new_items:
+                self.is_end_reached = True
+                self.loading = False
+                return
+
+            for item in new_items:
+                card_dict = {
+                    'pesticide_name': item.get('name', ''),
+                    'pesticide_description': item.get('description', ''),
+                    'pesticide_price': self._format_price(item.get('price', 0)),
+                    'pesticide_packaging': item.get('packaging', ''),
+                    'pesticide_application_rate': item.get('application_rate', ''),
+                    'pesticide_substance': self._format_substances(item.get('substances', '')),
+                    'full_data': item,
+                }
+                self.data.append(card_dict)
+
+            self.current_offset += len(new_items)
+            if len(new_items) < self.limit:
+                self.is_end_reached = True
+
+            # Увеличиваем видимый диапазон
+            if self.visible_count == 0:
+                self.visible_count = min(len(self.data), 10)
+            else:
+                self.visible_count = min(self.visible_count + 3, len(self.data))
+
+            rv.data = self.data[:self.visible_count]
+
+            if self.visible_count > 10:          # не первая загрузка
+                Clock.schedule_once(lambda dt: self._restore_scroll_position(viewport_height), 0)
+            else:
+                rv.scroll_y = 1.0
+
+        except Exception as e:
+            print(f"Ошибка загрузки: {e}")
+        finally:
+            self.loading = False
+    
+
+    def _show_more(self):
+        if self.visible_count >= len(self.data):
+            return
+
+        rv = self.ids.pesticide_recycle
+        viewport_height = rv.height
+
+        if rv.children:
+            content_height = rv.children[0].height
+            if content_height > viewport_height:
+                self.saved_scroll_offset = (1.0 - rv.scroll_y) * (content_height - viewport_height)
+            else:
+                self.saved_scroll_offset = 0.0
+        else:
+            self.saved_scroll_offset = 0.0
+
+        self.visible_count = min(self.visible_count + 3, len(self.data))
+        rv.data = self.data[:self.visible_count]
+
+        Clock.schedule_once(lambda dt: self._restore_scroll_position(viewport_height), 0)    
+    
+
+    def _format_price(self, price):
+        if isinstance(price, (int, float)):
+            return f"{int(price)} руб."
+        return str(price) if price else 'Цена не указана'
+
+    def _format_substances(self, substances_str):
+        if not substances_str or substances_str == 'None':
+            return "Действующие вещества не указаны"
+        # разбираем строку с разделителем '||'
+        parts = substances_str.split('||')
+        formatted = []
+        for part in parts:
+            part = part.strip()
+            if part:
+                # пытаемся выделить концентрацию
+                words = part.split()
+                if len(words) >= 2:
+                    name = words[0]
+                    conc = ' '.join(words[1:])
+                    formatted.append(f"• {name} ({conc})")
+                else:
+                    formatted.append(f"• {part}")
+        return '\n'.join(formatted) if formatted else "Действующие вещества не указаны"
+
+    def _restore_scroll_position(self, viewport_height):
+        rv = self.ids.pesticide_recycle
+        if not rv.children:
+            return
+        new_content_height = rv.children[0].height
+        if new_content_height <= viewport_height:
+            new_scroll_y = 1.0
+        else:
+            new_scroll_y = 1.0 - (self.saved_scroll_offset / (new_content_height - viewport_height))
+            new_scroll_y = max(0.0, min(1.0, new_scroll_y))
+
+        self.restoring_scroll = True
+        rv.scroll_y = new_scroll_y
+        self.restoring_scroll = False
+
+
+    def on_recycle_scroll(self, instance, value):
+        if self.loading or self.is_end_reached or self.restoring_scroll:
+            return
+
+        rv = self.ids.pesticide_recycle
+        if not rv.children:
+            return
+
+        content_height = rv.children[0].height
+        viewport_height = rv.height
+        if content_height <= viewport_height:
+            return
+
+        scroll_offset = (1.0 - value) * (content_height - viewport_height)
+        distance_to_end = content_height - viewport_height - scroll_offset
+
+        if distance_to_end < self.LOAD_THRESHOLD:
+            if self.visible_count < len(self.data):
+                self._show_more()
+                # Блокируем повторные вызовы на короткое время
+                self.restoring_scroll = True
+                Clock.schedule_once(lambda dt: setattr(self, 'restoring_scroll', False), 0.3)
+            elif not self.is_end_reached:
+                self.load_more()
 
     def on_enter(self):
-        """Вызывается при переходе на вкладку"""
         self._setup_catalog()
+        self.bind_scroll()
+
+    def bind_scroll(self):
+        recycle = self.ids.pesticide_recycle
+        recycle.bind(scroll_y=self.on_recycle_scroll)
     
     def _setup_catalog(self):
         """Настройка каталога"""
-        self._load_pesticides()
+        self.refresh_data()
     
     def clear_search(self):
         """Очистить поиск"""
         self.ids.search_input.text = ""
-        self._load_pesticides()
+        self.refresh_data()
         print("🔄 Поиск очищен")
 
     def on_search_text_change(self, instance, value):
@@ -902,8 +1130,7 @@ class CatalogTab(MDBottomNavigationItem):
         self.selected_types = []
         self.selected_cultures = []
         self.selected_diseases = []
-        
-        # Сброс поиска
+         # Сброс поиска
         self.ids.search_input.text = ""
         
         # Обновляем кнопку очистки поиска
@@ -920,7 +1147,7 @@ class CatalogTab(MDBottomNavigationItem):
             content.ids.max_price.text = ""
         
         print("🔄 Все фильтры и поиск сброшены")
-        self._load_pesticides()
+        self.refresh_data()
 # ============= Новый метод ======
     def create_new_pesticide(self):
         """Создать новый препарат"""
@@ -996,10 +1223,7 @@ class CatalogTab(MDBottomNavigationItem):
                 self.edit_dialog.dismiss()
             
             # Обновляем список препаратов
-            self._load_pesticides(
-                search_query=self.ids.search_input.text,
-                filters=self.filters
-            )
+            self.refresh_data()
             
             # Показываем сообщение об успехе
             self._show_success_message(f"Препарат '{new_data['name']}' создан")
@@ -1008,171 +1232,6 @@ class CatalogTab(MDBottomNavigationItem):
             print(f"❌ Ошибка создания: {e}")
             self._show_error_message(f"Ошибка создания: {e}")
 
-    def _load_pesticides(self, search_query="", filters=None, sort_criteria=None, sort_order=None):
-        """Загрузка препаратов с действующими веществами"""
-        pesticides_list = self.ids.pesticides_list
-        pesticides_list.clear_widgets()
-        
-        try:
-            # Получаем препараты из БД
-            app = MDApp.get_running_app()
-            
-            if hasattr(app.db, 'get_pesticides_with_substances'):
-                pesticides = app.db.get_pesticides_with_substances()
-            else:
-                print("⚠️ Метод get_pesticides_with_substances не найден, используем тестовые данные")
-                self._load_test_pesticides(search_query, filters, sort_criteria, sort_order)
-                return
-            
-            # Применяем поиск и фильтры
-            filtered_pesticides = self._apply_filters(pesticides, search_query, filters)
-            
-            # Применяем сортировку
-            sorted_pesticides = self._apply_sorting(filtered_pesticides, sort_criteria, sort_order)
-
-            # Добавляем препараты в список
-            for pesticide in sorted_pesticides:
-                card = PesticideCard()
-                
-                # Заполняем основные данные - используем прямое обращение к ключам
-                card.pesticide_name = pesticide.get('name', '') if hasattr(pesticide, 'get') else (pesticide['name'] if 'name' in pesticide else '')
-                card.pesticide_description = pesticide.get('description', '') if hasattr(pesticide, 'get') else (pesticide['description'] if 'description' in pesticide else '')
-                
-                # Форматируем цену
-                price = ''
-                if hasattr(pesticide, 'get'):
-                    price = pesticide.get('price', '')
-                elif 'price' in pesticide:
-                    price = pesticide['price']
-                
-                if price and isinstance(price, (int, float)):
-                    card.pesticide_price = f"{int(price)} руб."
-                else:
-                    card.pesticide_price = str(price) if price else 'Цена не указана'
-                
-                # Получаем другие поля
-                packaging = pesticide.get('packaging', '') if hasattr(pesticide, 'get') else (pesticide['packaging'] if 'packaging' in pesticide else '')
-                application_rate = pesticide.get('application_rate', '') if hasattr(pesticide, 'get') else (pesticide['application_rate'] if 'application_rate' in pesticide else '')
-                
-                card.pesticide_packaging = packaging
-                card.pesticide_application_rate = application_rate
-                
-                # Формируем строку с действующими веществами
-                substances_text = ""
-                if hasattr(pesticide, 'get'):
-                    substances = pesticide.get('substances')
-                else:
-                    substances = pesticide['substances'] if 'substances' in pesticide else None
-                
-                if substances:
-                    substances_str = str(substances)
-                    if substances_str and substances_str != 'None':
-                        # Разделяем вещества по '||'
-                        substances_list = substances_str.split('||')
-                        for substance_info in substances_list:
-                            if substance_info.strip():
-                                # Форматируем: "Название (концентрация)"
-                                parts = substance_info.strip().split(' ')
-                                if len(parts) >= 2:
-                                    name = parts[0]
-                                    concentration = ' '.join(parts[1:])
-                                    substances_text += f"• {name} ({concentration})\n"
-                                else:
-                                    substances_text += f"• {substance_info.strip()}\n"
-                
-                # Если вещества есть, показываем их, иначе показываем "Не указаны"
-                if substances_text:
-                    card.pesticide_substance = substances_text.strip()
-                else:
-                    card.pesticide_substance = "Действующие вещества не указаны"
-                
-                # Привязываем обработчик клика
-                # Передаем словарь или Row объект как есть
-                card.on_release = lambda p=pesticide: self.show_pesticide_details(p)
-                
-                pesticides_list.add_widget(card)
-                
-        except Exception as e:
-            print(f"Ошибка загрузки препаратов: {e}")
-            # Fallback на тестовые данные
-            self._load_test_pesticides(search_query, filters, sort_criteria, sort_order)
-    
-    def _apply_filters(self, pesticides, search_query, filters):
-        """Применение фильтров к списку препаратов"""
-        filtered = pesticides
-        
-        # Преобразуем все элементы в словари для удобства
-        processed_pesticides = []
-        for p in filtered:
-            if hasattr(p, 'get'):
-                processed_pesticides.append(p)
-            else:
-                processed_pesticides.append(dict(p) if hasattr(p, '_asdict') else p)
-        
-        filtered = processed_pesticides
-        
-        # Поиск по названию, описанию и веществу
-        if search_query:
-            search_query = search_query.lower()
-            filtered = [p for p in filtered
-                    if search_query in p.get('name', '').lower()
-                    or search_query in p.get('description', '').lower()
-                    or search_query in str(p.get('substance', '')).lower()]
-        
-        # Фильтр по типу
-        if filters and filters.get('type'):
-            filtered = [p for p in filtered if p.get('type', '') in filters['type']]
-        
-        # Фильтр по культурам
-        if filters and filters.get('cultures'):
-            selected_cultures = filters['cultures']
-            filtered = [p for p in filtered if any(
-                culture in str(p.get('cultures', '')) 
-                for culture in selected_cultures
-            )]
-        
-        # Фильтр по заболеваниям
-        if filters and filters.get('diseases'):
-            selected_diseases = filters['diseases']
-            filtered = [p for p in filtered if any(
-                disease in str(p.get('diseases', '')) 
-                for disease in selected_diseases
-            )]
-        
-        # Фильтр по цене
-        if filters:
-            min_price = filters.get('min_price')
-            max_price = filters.get('max_price')
-            
-            if min_price and min_price.strip():
-                try:
-                    min_val = float(min_price.replace(' ', ''))
-                    filtered = [p for p in filtered if self._extract_price(p.get('price', 0)) >= min_val]
-                except ValueError:
-                    pass
-            
-            if max_price and max_price.strip():
-                try:
-                    max_val = float(max_price.replace(' ', ''))
-                    filtered = [p for p in filtered if self._extract_price(p.get('price', 0)) <= max_val]
-                except ValueError:
-                    pass
-        
-        return filtered
-    
-    def _apply_sorting(self, pesticides, criteria=None, order=None):
-        """Применение сортировки к списку препаратов"""
-        if not criteria:
-            criteria = self.sort_settings['criteria']
-        if not order:
-            order = self.sort_settings['order']
-        
-        reverse = (order == 'desc')
-        
-        if criteria == 'price':
-            return sorted(pesticides, key=lambda x: self._extract_price(x['price']), reverse=reverse)
-        else:  # name
-            return sorted(pesticides, key=lambda x: x['name'], reverse=reverse)
     
     def search_pesticides(self, query):
         """Поиск препаратов"""
@@ -1183,8 +1242,8 @@ class CatalogTab(MDBottomNavigationItem):
                 self.search_clear_button.icon_color = "gray"
             else:
                 self.search_clear_button.icon_color = [0.5, 0.5, 0.5, 0.3]
-        
-        self._load_pesticides(search_query=query, filters=self.filters)
+        self.search_query = query
+        self.refresh_data()
     
     def open_sort_menu(self):
         """Открыть меню сортировки"""
@@ -1205,12 +1264,7 @@ class CatalogTab(MDBottomNavigationItem):
         """Применить сортировку"""
         self.sort_settings = {'criteria': criteria, 'order': order}
         print(f"✅ Применена сортировка: {criteria} ({order})")
-        self._load_pesticides(
-            search_query=self.ids.search_input.text,
-            filters=self.filters,
-            sort_criteria=criteria,
-            sort_order=order
-        )
+        self.refresh_data()
         if self.sort_dialog:
             self.sort_dialog.dismiss()
     
@@ -1383,6 +1437,7 @@ class CatalogTab(MDBottomNavigationItem):
         else:
             items.append(culture)
         content.ids.culture_filter.text = ', '.join(items)
+        self.selected_cultures = items.copy()   # синхронизация
         if self.culture_menu:
             self.culture_menu.dismiss()
             self.culture_menu = None
@@ -1399,6 +1454,7 @@ class CatalogTab(MDBottomNavigationItem):
         else:
             items.append(disease)
         content.ids.disease_filter.text = ', '.join(items)
+        self.selected_diseases = items.copy()   # синхронизация
         if self.disease_menu:
             self.disease_menu.dismiss()
             self.disease_menu = None
@@ -1607,44 +1663,7 @@ class CatalogTab(MDBottomNavigationItem):
             print(f"❌ Ошибка отображения деталей препарата: {e}")
             self._show_error_message(f"Ошибка отображения деталей: {e}")
 
-    def _load_test_pesticides(self, search_query="", filters=None, sort_criteria=None, sort_order=None):
-        """Загрузка тестовых препаратов (fallback)"""
-        pesticides_list = self.ids.pesticides_list
-        pesticides_list.clear_widgets()
-        
-        # Используем self.test_pesticides
-        test_pesticides = self.test_pesticides
-        
-        # Применяем поиск и фильтры
-        filtered_pesticides = self._apply_filters(test_pesticides, search_query, filters)
-        
-        # Применяем сортировку
-        sorted_pesticides = self._apply_sorting(filtered_pesticides, sort_criteria, sort_order)
-        
-        # Добавляем препараты в список
-        for pesticide in sorted_pesticides:
-            card = PesticideCard()
-            
-            # Заполняем данные с проверкой на None
-            card.pesticide_name = pesticide.get('name', '')
-            card.pesticide_description = pesticide.get('description', '')
-            card.pesticide_price = f"{pesticide.get('price', 0)} руб."
-            card.pesticide_packaging = pesticide.get('packaging', '')
-            card.pesticide_application_rate = pesticide.get('application_rate', '')
-            
-            # Для тестовых данных формируем строку ДВ
-            substances_text = "Действующие вещества:\n"
-            if pesticide.get('substance'):
-                substances_text += f": {pesticide.get('substance')}\n"
-            else:
-                substances_text += "Не указаны"
-            
-            card.pesticide_substance = substances_text.strip()
-            
-            card.on_release = lambda p=pesticide: self.show_pesticide_details(p)
-            
-            pesticides_list.add_widget(card)
-
+   
     def edit_pesticide(self, pesticide):
         """Редактирование препарата"""
         print(f"✏️ Редактирование препарата: {pesticide['name']}")
@@ -1800,8 +1819,7 @@ class CatalogTab(MDBottomNavigationItem):
             # Закрываем диалог
             self.edit_dialog.dismiss()            
             # Обновляем отображение в каталоге
-            self._load_pesticides()
-            
+            self.refresh_data()
         except Exception as e:
             print(f"❌ Ошибка сохранения препарата: {e}")
 
@@ -1831,11 +1849,7 @@ class CatalogTab(MDBottomNavigationItem):
                 self.detail_dialog.dismiss()
             
             # Обновляем список препаратов
-            self._load_pesticides(
-                search_query=self.ids.search_input.text,
-                filters=self.filters
-            )
-            
+            self.refresh_data()            
             # Показываем сообщение об успехе
             self._show_success_message(f"Препарат '{updated_data['name']}' обновлен")
             
@@ -1852,10 +1866,7 @@ class CatalogTab(MDBottomNavigationItem):
             self.edit_dialog.dismiss()
         
         # Обновляем список
-        self._load_pesticides(
-            search_query=self.ids.search_input.text,
-            filters=self.filters
-        )
+        self.refresh_data()
     
     def cancel_edit(self):
         """Отменить редактирование"""
@@ -1880,26 +1891,6 @@ class CatalogTab(MDBottomNavigationItem):
     def select_pesticide_type(self, pesticide_type):
         """Выбрать тип пестицида в фильтрах"""
         try:
-            # if self.filter_dialog:
-            #     content = self.filter_dialog.content_cls
-            #     # Получаем текущие выбранные типы
-            #     current_text = content.ids.type_filter.text
-            #     if current_text:
-            #         # Если уже есть выбранные типы, добавляем новый через запятую
-            #         types_list = [t.strip() for t in current_text.split(',')]
-            #         if pesticide_type not in types_list:
-            #             types_list.append(pesticide_type)
-            #             content.ids.type_filter.text = ', '.join(types_list)
-            #         else:
-            #             # Если уже выбран, убираем его
-            #             types_list.remove(pesticide_type)
-            #             content.ids.type_filter.text = ', '.join(types_list)
-            #     else:
-            #         content.ids.type_filter.text = pesticide_type
-                
-            #     if self.type_menu:
-            #         self.type_menu.dismiss()
-            #         self.type_menu = None
             if not self.filter_dialog:
                 return
             content = self.filter_dialog.content_cls
@@ -1910,6 +1901,7 @@ class CatalogTab(MDBottomNavigationItem):
             else:
                 types.append(pesticide_type)
             content.ids.type_filter.text = ', '.join(types)
+            self.selected_types = types.copy()   # синхронизация
             if self.type_menu:
                 self.type_menu.dismiss()
                 self.type_menu = None
@@ -1920,8 +1912,6 @@ class CatalogTab(MDBottomNavigationItem):
         """Применить фильтры"""
         if self.filter_dialog:
             content = self.filter_dialog.content_cls
-            
-            # Собираем все фильтры
             self.filters = {
                 'type': getattr(self, 'selected_types', []).copy(),
                 'cultures': getattr(self, 'selected_cultures', []).copy(),
@@ -1929,12 +1919,15 @@ class CatalogTab(MDBottomNavigationItem):
                 'min_price': content.ids.min_price.text,
                 'max_price': content.ids.max_price.text
             }
-            
+            # self.filters = {
+            #     'type': self.selected_types.copy(),
+            #     'cultures': self.selected_cultures.copy(),
+            #     'diseases': self.selected_diseases.copy(),
+            #     'min_price': content.ids.min_price.text,
+            #     'max_price': content.ids.max_price.text
+            # }
             print(f"✅ Применены фильтры: {self.filters}")
-            self._load_pesticides(
-                search_query=self.ids.search_input.text,
-                filters=self.filters
-            )
+            self.refresh_data()
             self.filter_dialog.dismiss()
 
     def reset_filters(self):
@@ -1943,7 +1936,6 @@ class CatalogTab(MDBottomNavigationItem):
         self.selected_types = []
         self.selected_cultures = []
         self.selected_diseases = []
-        
         if self.filter_dialog:
             content = self.filter_dialog.content_cls
             content.ids.type_filter.text = ""
@@ -1951,9 +1943,9 @@ class CatalogTab(MDBottomNavigationItem):
             content.ids.disease_filter.text = ""
             content.ids.min_price.text = ""
             content.ids.max_price.text = ""
-        
         print("🔄 Все фильтры сброшены")
-        self._load_pesticides(search_query=self.ids.search_input.text)
+        self.refresh_data()
+    
     
     def _get_test_pesticides(self):
         """Получить тестовые данные препаратов"""
@@ -2092,9 +2084,9 @@ class CatalogTab(MDBottomNavigationItem):
                 try:
                     pesticides = app.db.get_pesticides_with_substances()
                     # Применяем фильтры так же как в _load_pesticides
-                    filtered_pesticides = self._apply_filters(pesticides, 
-                                                             self.ids.search_input.text, 
-                                                             self.filters)
+                    # filtered_pesticides = self._apply_filters(pesticides, 
+                    #                                          self.ids.search_input.text, 
+                    #                                          self.filters)
                 except Exception as e:
                     print(f"⚠️ Ошибка получения данных из БД: {e}")
                     filtered_pesticides = self._get_filtered_test_pesticides()
