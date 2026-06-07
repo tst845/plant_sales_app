@@ -118,7 +118,7 @@ class SubstanceEditorPopup(Popup):
         )
         
         if substance_data:
-            item.substance_id = substance_data['id']
+            item.substance_id = str(substance_data['id'])
             item.substance_name = substance_data['name']
             item.concentration = substance_data['concentration']
             item.update_display_text()

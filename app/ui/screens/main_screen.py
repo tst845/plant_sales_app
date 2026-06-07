@@ -7,7 +7,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 # Импортируем вкладки из отдельных файлов
 from app.ui.screens.settings_screen import SettingsTab
 from app.ui.screens.catalog_screen import CatalogTab
-from app.ui.screens.orders_screen import OrdersTab
+# from app.ui.screens.orders_screen import OrdersTab
 from app.ui.screens.camera_screen import CameraScreen 
 
 Builder.load_string('''
@@ -23,10 +23,10 @@ Builder.load_string('''
     text: 'Диагностика'
     icon: 'camera'
 
-<OrdersTab>:
-    name: 'orders'
-    text: 'Заказы'
-    icon: 'cart'
+# <OrdersTab>:
+#     name: 'orders'
+#     text: 'Заказы'
+#     icon: 'cart'
     
     MDBoxLayout:
         orientation: 'vertical'
@@ -60,5 +60,5 @@ class MainScreen(Screen):
         # Добавляем вкладки
         bottom_nav.add_widget(DiagnosisTab())
         bottom_nav.add_widget(CatalogTab())
-        bottom_nav.add_widget(OrdersTab())
+        # bottom_nav.add_widget(OrdersTab())
         bottom_nav.add_widget(SettingsTab())

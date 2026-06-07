@@ -20,9 +20,8 @@ from kivy.properties import ObjectProperty
 from kivymd.app import MDApp
 from kivy.clock import Clock
 from kivy.properties import DictProperty
-from kivy.animation import Animation
-
-
+# from kivy.animation import Animation
+from kivy.uix.widget import Widget 
 
 Builder.load_string('''
 <CatalogTab>:
@@ -104,28 +103,47 @@ Builder.load_string('''
                 orientation: 'vertical'
                 spacing: dp(5)
                 padding: dp(10)        
+        
+        # Нижняя панель с кнопкой создания
+        AnchorLayout:
+            size_hint_y: None
+            height: "50dp"
+            md_bg_color: [0.9, 0.9, 0.9, 1]   # светло-серый
+            anchor_x: "center"
+            anchor_y: "center"
 
-    # Кнопка экспорта в Excel (слева)
-    MDFloatingActionButton:
-        icon: "file-excel"
-        type: "standard"
-        md_bg_color: "#2196F3"  # Синий цвет для Excel
-        elevation_normal: 12
-        pos_hint: {"x": 0.02, "y": 0.02}
-        size_hint: (None, None)
-        size: ("56dp", "56dp")
-        on_release: root.export_to_excel()
+            MDIconButton:
+                icon: "plus"
+                theme_icon_color: "Custom"
+                icon_color: "white"
+                md_bg_color: "green"
+                size_hint: None, None
+                size: "56dp", "28dp"
+                on_release: root.create_new_pesticide()
+    
+    # # Кнопка экспорта в Excel (слева)
+    # MDFloatingActionButton:
+        # id: excel_export_btn
+    #     icon: "file-excel"
+    #     type: "standard"
+    #     md_bg_color: "#2196F3"  # Синий цвет для Excel
+    #     elevation_normal: 12
+    #     pos_hint: {"x": 0.02, "y": 0.02}
+    #     size_hint: (None, None)
+    #     size: ("56dp", "56dp")
+    #     on_release: root.export_to_excel()
                     
-    # Фиксированная кнопка создания поверх списка
-    MDFloatingActionButton:
-        icon: "plus"
-        type: "standard"
-        md_bg_color: "green"
-        elevation_normal: 12
-        pos_hint: {"center_x": 0.5, "y": 0.02}
-        size_hint: (None, None)
-        size: ("56dp", "56dp")
-        on_release: root.create_new_pesticide()
+    # # Фиксированная кнопка создания поверх списка
+    # MDFloatingActionButton:
+    #     id: create_pesticide_btn
+    #     icon: "plus"
+    #     type: "standard"
+    #     md_bg_color: "green"
+    #     elevation_normal: 12
+    #     pos_hint: {"center_x": 0.5, "y": 0.02}
+    #     size_hint: (None, None)
+    #     size: ("56dp", "56dp")
+    #     on_release: root.create_new_pesticide()
 
 <PesticideCard>:
     orientation: 'vertical'
@@ -173,8 +191,8 @@ Builder.load_string('''
                 max_lines: 1
             
             MDLabel:
-                id: description_label
-                text: root.pesticide_description
+                id: type_label
+                text: root.pesticide_type
                 font_style: 'Body2'
                 theme_text_color: 'Secondary'
                 size_hint_y: None
@@ -311,7 +329,7 @@ Builder.load_string('''
 
 <SortDialog>:
     orientation: "vertical"
-    spacing: "15dp"
+    spacing: "20dp"
     padding: "20dp"
     size_hint_y: None
     height: "300dp"
@@ -418,188 +436,150 @@ Builder.load_string('''
 
 <EditPesticideDialog>:
     orientation: "vertical"
-    spacing: "15dp"
-    padding: "20dp"
+    spacing: "10dp"
+    padding: "15dp"
     size_hint_y: None
-    height: "600dp"
-    
+    height: "500dp"
+
     ScrollView:
         MDBoxLayout:
-            orientation: 'vertical'
-            spacing: '15dp'
+            orientation: "vertical"
+            spacing: "10dp"
             size_hint_y: None
             height: self.minimum_height
-            padding: '10dp'
-            
-            # Название препарата
+
             MDLabel:
                 text: "Название:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_name
-                # hint_text: "Название препарата"
                 mode: "rectangle"
-            
-            # Действующее вещество
+
             MDLabel:
-                text: "Действующее вещество:"
+                text: "Действующие вещества:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_substance
-                # hint_text: "Действующее вещество"
                 mode: "rectangle"
-                    
-            MDRectangleFlatButton:
-                id: edit_substances_btn
-                text: "Редактировать ДВ"
-                size_hint_x: 1
-                on_release: app.root.show_substance_editor(pesticide_id)
-            
-            # Описание
+                multiline: True
+                height: dp(60)
+                hint_text: "Пример: ДВ1 1,1 г/л, ДВ2 2,2 г/л"
+
             MDLabel:
                 text: "Описание:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_description
-                # hint_text: "Описание препарата"
                 mode: "rectangle"
                 multiline: True
-                height: dp(80)
-            
-            # Норма расхода
+                height: dp(90)
+
             MDLabel:
                 text: "Норма расхода:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_application_rate
-                # hint_text: "Норма расхода"
                 mode: "rectangle"
-            
-            # Фасовка
+
             MDLabel:
                 text: "Фасовка:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_packaging
-                # hint_text: "Фасовка"
                 mode: "rectangle"
-            
-            # Цена
+
             MDLabel:
                 text: "Цена:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_price
-                # hint_text: "Цена"
                 mode: "rectangle"
-                input_filter: 'float'
-            
-            # Производитель
+                input_filter: "float"
+
             MDLabel:
                 text: "Производитель:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_manufacturer
-                # hint_text: "Производитель"
                 mode: "rectangle"
 
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_x: 1
-                
-                MDLabel:
-                    text: "Действующие вещества:"
-                    size_hint_x: 0.4
-                    halign: 'right'
-                    valign: 'middle'
-                
-                MDRectangleFlatButton:
-                    id: edit_substances_btn
-                    text: "Редактировать"
-                    size_hint_x: 0.6
-                    on_release: app.show_substance_editor(pesticide_id)
-                    
-            # Тип пестицида (выпадающий список)
             MDLabel:
                 text: "Тип пестицида:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_type
-                hint_text: "Выберите тип..."
                 mode: "rectangle"
+                hint_text: "Выберите тип..."
                 on_focus: if self.focus: root.open_type_menu()
-            
-            # Болезни (многострочное поле)
+
             MDLabel:
                 text: "Болезни:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_diseases
-                hint_text: "Болезни (через запятую)"
                 mode: "rectangle"
                 multiline: True
                 height: dp(60)
-            
-            # Культуры (многострочное поле)
+
             MDLabel:
                 text: "Культуры:"
                 theme_text_color: "Secondary"
                 size_hint_y: None
                 height: self.texture_size[1]
-            
+
             MDTextField:
                 id: edit_cultures
-                hint_text: "Культуры (через запятую)"
                 mode: "rectangle"
                 multiline: True
                 height: dp(60)
-    
+
     MDBoxLayout:
         size_hint_y: None
         height: "48dp"
         spacing: "10dp"
-        
+
+        MDFlatButton:
+            text: "Отмена"
+            on_release: root.cancel_edit()
+
+        MDRaisedButton:
+            text: "Принять"
+            on_release: root.save_pesticide()
         MDRaisedButton:
             text: "Удалить"
             theme_text_color: "Custom"
             text_color: "white"
             md_bg_color: "red"
             on_release: root.delete_pesticide()
-        
-        MDFlatButton:
-            text: "Отмена"
-            on_release: root.cancel_edit()
-        
-        MDRaisedButton:
-            text: "Сохранить"
-            on_release: root.save_pesticide()
+            disabled: root.is_new
+            opacity: 0 if root.is_new else 1
 ''')
 
 
@@ -614,6 +594,8 @@ class PesticideCard(MDCard):
     pesticide_price = StringProperty("")
     pesticide_packaging = StringProperty("")
     pesticide_application_rate = StringProperty("")
+    pesticide_type = StringProperty("") 
+    catalog_instance = ObjectProperty(None)
     full_data = ObjectProperty(None)
 
     def __init__(self, **kwargs):
@@ -630,10 +612,17 @@ class PesticideCard(MDCard):
         self.pesticide_packaging = data_dict.get('packaging', '')
         self.pesticide_application_rate = data_dict.get('application_rate', '')
         self.pesticide_substance = data_dict.get('substances', '')
+        self.pesticide_type = data_dict.get('pesticide_type', '') 
+        self.catalog_instance = data_dict.get('catalog_instance')
         # сохраним id и другие данные для обработчика on_release
         self.pesticide_data = data_dict
     
-        
+    def on_touch_up(self, touch):
+        if self.collide_point(*touch.pos) and self.catalog_instance:
+            self.catalog_instance.show_pesticide_details(self.full_data)
+            return True
+        return super().on_touch_up(touch)
+    
     def on_pesticide_name(self, instance, value):
         # Если название пустое, показываем "Без названия"
         if not value:
@@ -647,13 +636,6 @@ class PesticideCard(MDCard):
             self.ids.substance_label.text = ""
         else:
             self.ids.substance_label.text = f"ДВ: {value}"
-    
-    def on_pesticide_description(self, instance, value):
-        # Если описание пустое, не показываем ничего
-        if not value:
-            self.ids.description_label.text = ""
-        else:
-            self.ids.description_label.text = value
     
     def on_pesticide_price(self, instance, value):
         # Если цена пустая, показываем "Цена не указана"
@@ -693,6 +675,7 @@ class FilterDialog(MDBoxLayout):
         self.reset_callback = reset_callback
         self.catalog_instance = catalog_instance
         self.current_filters = current_filters
+        
         
         # Восстанавливаем предыдущие значения фильтров
         if current_filters:
@@ -746,134 +729,129 @@ class SortDialog(MDBoxLayout):
         self.cancel_callback()
 
 class EditPesticideDialog(MDBoxLayout):
-    def __init__(self, catalog_instance, pesticide_data=None, save_callback=None, 
-                 delete_callback=None, cancel_callback=None, **kwargs):
-        super().__init__(**kwargs)
+    is_new = BooleanProperty(False)
+    def __init__(self, catalog_instance, pesticide_data, **kwargs):
         self.catalog_instance = catalog_instance
-        self.pesticide_data = pesticide_data or {}  # ЗДЕСЬ ИСПРАВЛЕНИЕ - инициализируем
-        self.save_callback = save_callback
-        self.delete_callback = delete_callback
-        self.cancel_callback = cancel_callback
+        self.pesticide_data = pesticide_data
         self.type_menu = None
-        
-        # Определяем, это новый препарат или редактирование
-        self.is_new = not self.pesticide_data.get('name', '')
-    
+        # флаг, новый ли препарат
+        self.is_new = not pesticide_data.get('name', '')
+        super().__init__(**kwargs)
+
     def on_kv_post(self, base_widget):
-        """Вызывается после загрузки KV-разметки"""
         super().on_kv_post(base_widget)
-        
-        # Проверяем, есть ли у нас доступ к ids
-        if hasattr(self, 'ids'):
-            # Заполняем поля данными препарата
-            self.ids.edit_name.text = self.pesticide_data.get('name', '')
-            self.ids.edit_substance.text = self.pesticide_data.get('substance', '')
-            self.ids.edit_description.text = self.pesticide_data.get('description', '')
-            self.ids.edit_application_rate.text = self.pesticide_data.get('application_rate', '')
-            self.ids.edit_packaging.text = self.pesticide_data.get('packaging', '')
-            
-            # Для цены (убираем лишние "руб.")
-            price_text = str(self.pesticide_data.get('price', ''))
-            if 'руб' in price_text:
-                price_text = price_text.replace(' руб.', '').replace(' ', '')
-            self.ids.edit_price.text = price_text
-            
-            self.ids.edit_manufacturer.text = self.pesticide_data.get('manufacturer', '')
-            self.ids.edit_type.text = self.pesticide_data.get('type', 'Гербициды')
-            self.ids.edit_diseases.text = self.pesticide_data.get('diseases', '')
-            self.ids.edit_cultures.text = self.pesticide_data.get('cultures', '')
-    
+        if not hasattr(self, 'ids'):
+            return
+        data = self.pesticide_data
+        self.ids.edit_name.text = data.get('name', '')
+        raw = data.get('substances', '')
+        if raw and raw != 'None':
+            formatted = self.catalog_instance._format_substances(raw)
+            self.ids.edit_substance.text = formatted.replace('\n', ', ')
+        else:
+            self.ids.edit_substance.text = ''
+        self.ids.edit_description.text = data.get('description', '')
+        self.ids.edit_application_rate.text = data.get('application_rate', '')
+        self.ids.edit_packaging.text = data.get('packaging', '')
+        price = data.get('price', '')
+        if isinstance(price, (int, float)):
+            price = str(price)
+        self.ids.edit_price.text = price
+        self.ids.edit_manufacturer.text = data.get('manufacturer', '')
+        self.ids.edit_type.text = data.get('type', data.get('pesticide_type', 'Гербициды'))
+
+        # Загружаем культуры и болезни для существующего препарата
+        if 'id' in data and data['id']:
+            app = MDApp.get_running_app()
+            cursor = app.db.connection.cursor()
+            cursor.execute('''
+                SELECT c.culture_name
+                FROM pesticide_cultures pc
+                JOIN cultures c ON pc.culture_id = c.id
+                WHERE pc.pesticide_id = ?
+            ''', (data['id'],))
+            cultures_list = [row['culture_name'] for row in cursor.fetchall()]
+            cursor.execute('''
+                SELECT d.disease_name
+                FROM pesticide_diseases pd
+                JOIN diseases d ON pd.disease_id = d.id
+                WHERE pd.pesticide_id = ?
+            ''', (data['id'],))
+            diseases_list = [row['disease_name'] for row in cursor.fetchall()]
+            self.ids.edit_cultures.text = ', '.join(cultures_list) if cultures_list else ''
+            self.ids.edit_diseases.text = ', '.join(diseases_list) if diseases_list else ''
+        else:
+            self.ids.edit_cultures.text = ''
+            self.ids.edit_diseases.text = ''
+
     def open_type_menu(self):
-        """Открыть меню выбора типа пестицида ПОД полем"""
-        try:
-            # Если меню уже открыто, закройте его
-            if self.type_menu and self.type_menu.parent:
-                self.type_menu.dismiss()
-                self.type_menu = None
-                return
-            
-            # Список доступных типов пестицидов
-            pesticide_types = ["Гербициды", "Инсектициды", "Фунгициды", "Бактерициды", "Фумиганты"]
-            
-            # Создаем элементы меню
-            menu_items = [
-                {
-                    "text": p_type,
-                    "viewclass": "OneLineListItem",
-                    "height": dp(48),
-                    "on_release": lambda x=p_type: self.select_pesticide_type(x),
-                } for p_type in pesticide_types
-            ]
-            
-            # Создаем меню ПОД полем
-            self.type_menu = MDDropdownMenu(
-                caller=self.ids.edit_type,
-                items=menu_items,
-                width=self.ids.edit_type.width * 1.5,  # Ширина относительно поля ввода
-                max_height=dp(150),
-                position="auto",
-                ver_growth="down"
-            )
-            self.type_menu.open()
-            
-        except Exception as e:
-            print(f"❌ Ошибка открытия меню типа: {e}")
-    
-    def select_pesticide_type(self, pesticide_type):
-        """Выбрать тип пестицида"""
-        try:
-            self.ids.edit_type.text = pesticide_type
-            if self.type_menu:
-                self.type_menu.dismiss()
-                self.type_menu = None
-        except Exception as e:
-            print(f"❌ Ошибка выбора типа: {e}")
-    
+        if self.type_menu and self.type_menu.parent:
+            self.type_menu.dismiss()
+            self.type_menu = None
+            return
+        pesticide_types = ["Гербициды", "Инсектициды", "Фунгициды", "Бактерициды", "Фумиганты"]
+        menu_items = [
+            {"text": t, "viewclass": "OneLineListItem", "height": dp(48),
+             "on_release": lambda x=t: self.select_pesticide_type(x)} for t in pesticide_types
+        ]
+        self.type_menu = MDDropdownMenu(
+            caller=self.ids.edit_type,
+            items=menu_items,
+            width=dp(200),
+            max_height=dp(150),
+            position="auto",
+            ver_growth="down"
+        )
+        self.type_menu.open()
+
+    def select_pesticide_type(self, ptype):
+        self.ids.edit_type.text = ptype
+        if self.type_menu:
+            self.type_menu.dismiss()
+            self.type_menu = None
+
     def save_pesticide(self):
-        try:
-            updated_data = {
-                'name': self.ids.edit_name.text,
-                'substance': self.ids.edit_substance.text,
-                'description': self.ids.edit_description.text,
-                'application_rate': self.ids.edit_application_rate.text,
-                'packaging': self.ids.edit_packaging.text,
-                'price': self.ids.edit_price.text,
-                'manufacturer': self.ids.edit_manufacturer.text,
-                'unit': self.ids.edit_unit.text,
-                'type': self.ids.edit_type.text,
-                'diseases': self.ids.edit_diseases.text,
-                'cultures': self.ids.edit_cultures.text,
-            }
-            
-            # Для существующего препарата добавляем ID
-            if not self.is_new and 'id' in self.pesticide_data:
-                updated_data['id'] = self.pesticide_data['id']
-            
-            self.save_callback(updated_data)
-            
-        except Exception as e:
-            print(f"❌ Ошибка сохранения: {e}")
-            self.catalog_instance._show_error_message(f"Ошибка сохранения: {e}")
-    
-    def delete_pesticide(self):
-        if self.delete_callback:
-            self.delete_callback(self.pesticide_data)
-    
+        # Собираем данные из полей
+        data = {
+            'name': self.ids.edit_name.text,
+            'substances': self.ids.edit_substance.text,   # сырая строка
+            'description': self.ids.edit_description.text,
+            'application_rate': self.ids.edit_application_rate.text,
+            'packaging': self.ids.edit_packaging.text,
+            'price': self.ids.edit_price.text,
+            'manufacturer': self.ids.edit_manufacturer.text,
+            'type': self.ids.edit_type.text,
+            'diseases': self.ids.edit_diseases.text,
+            'cultures': self.ids.edit_cultures.text,
+        }
+        if self.is_new:
+            self.catalog_instance.save_new_pesticide(data)
+        else:
+            if 'id' in self.pesticide_data:
+                data['id'] = self.pesticide_data['id']
+            self.catalog_instance.save_pesticide_changes(data)
+        # Передаём в каталог
+        self.catalog_instance.save_pesticide_changes(data)
+        # Закрываем меню, если открыто
+        if self.type_menu:
+            self.type_menu.dismiss()
+            self.type_menu = None
+
     def cancel_edit(self):
-        # Закрываем меню если открыто
         if self.type_menu:
             self.type_menu.dismiss()
             self.type_menu = None
-        self.cancel_callback()
-    
+        self.catalog_instance.cancel_edit()
+
+    def delete_pesticide(self):
+        self.catalog_instance.delete_pesticide(self.pesticide_data)
+
     def on_dismiss(self):
-        """Закрыть меню при закрытии диалога"""
         if self.type_menu:
             self.type_menu.dismiss()
             self.type_menu = None
-
-
             
+
 class CatalogTab(MDBottomNavigationItem):
     app = ObjectProperty(None)
     restoring_scroll = BooleanProperty(False) # Добавьте флаг, чтобы on_recycle_scroll игнорировал изменения, вызванные программной установкой scroll_y:
@@ -899,6 +877,7 @@ class CatalogTab(MDBottomNavigationItem):
         self.disease_menu = None
         self.sort_dialog = None
         self.detail_dialog = None
+        self.confirm_dialog = None
         self.edit_dialog = None
         self.current_editing_pesticide = None
         self.selected_types = []
@@ -912,6 +891,8 @@ class CatalogTab(MDBottomNavigationItem):
         self.loading = False
         self.is_end_reached = False
         self.search_query = ""
+
+        self.opening_details = False
         
         # Инициализация test_pesticides (ЗДЕСЬ ИСПРАВЛЕНИЕ!)
         self.test_pesticides = self._get_test_pesticides()
@@ -983,6 +964,9 @@ class CatalogTab(MDBottomNavigationItem):
                     'pesticide_packaging': item.get('packaging', ''),
                     'pesticide_application_rate': item.get('application_rate', ''),
                     'pesticide_substance': self._format_substances(item.get('substances', '')),
+                    'pesticide_type': item.get('pesticide_type', 'Не указан'),  
+                    'substances': item.get('substances', ''),
+                    'catalog_instance': self, 
                     'full_data': item,
                 }
                 self.data.append(card_dict)
@@ -1009,7 +993,6 @@ class CatalogTab(MDBottomNavigationItem):
         finally:
             self.loading = False
     
-
     def _show_more(self):
         if self.visible_count >= len(self.data):
             return
@@ -1037,24 +1020,52 @@ class CatalogTab(MDBottomNavigationItem):
             return f"{int(price)} руб."
         return str(price) if price else 'Цена не указана'
 
+    def _parse_substances(self, composition_str):
+        if not composition_str:
+            return []
+        import re
+        # Заменяем ", " и ";" и "+" на единый разделитель ";"
+        s = re.sub(r', ', ';', composition_str)          # запятая с пробелом
+        s = re.sub(r'\s*[+;]\s*', ';', s)                # плюс или точка с запятой
+        fragments = s.split(';')
+        result = []
+        conc_pattern = re.compile(r'([\d,\.]+\s*(?:г/кг|г/л|%|мг/кг|мг/л))')
+
+        for frag in fragments:
+            frag = frag.strip()
+            if not frag:
+                continue
+            match = conc_pattern.search(frag)
+            if match:
+                conc = match.group(1).strip()
+                name = (frag[:match.start()].strip() + " " + frag[match.end():].strip()).strip()
+                if not name and result:
+                    name = result[-1][0]
+                if name:   # добавляем только если есть название
+                    result.append((name, conc))
+            else:
+                if result:
+                    last_name, last_conc = result[-1]
+                    result[-1] = (f"{last_name} {frag}".strip(), last_conc)
+                else:
+                    result.append((frag, ''))
+        # Удаляем дубликаты
+        seen = set()
+        unique = []
+        for name, conc in result:
+            key = (name, conc)
+            if key not in seen:
+                seen.add(key)
+                unique.append((name, conc))
+        return unique
+
     def _format_substances(self, substances_str):
         if not substances_str or substances_str == 'None':
             return "Действующие вещества не указаны"
-        # разбираем строку с разделителем '||'
         parts = substances_str.split('||')
-        formatted = []
-        for part in parts:
-            part = part.strip()
-            if part:
-                # пытаемся выделить концентрацию
-                words = part.split()
-                if len(words) >= 2:
-                    name = words[0]
-                    conc = ' '.join(words[1:])
-                    formatted.append(f"• {name} ({conc})")
-                else:
-                    formatted.append(f"• {part}")
-        return '\n'.join(formatted) if formatted else "Действующие вещества не указаны"
+        formatted = [part.strip() for part in parts if part.strip()]
+        print('def _format_substances formatted: ', formatted)
+        return ', '.join(formatted) if formatted else "Действующие вещества не указаны"
 
     def _restore_scroll_position(self, viewport_height):
         rv = self.ids.pesticide_recycle
@@ -1169,7 +1180,6 @@ class CatalogTab(MDBottomNavigationItem):
         }
         
         self.current_editing_pesticide = new_pesticide
-        
         # Создаем диалог редактирования
         self.edit_dialog = MDDialog(
             title="Создание нового препарата",
@@ -1177,60 +1187,38 @@ class CatalogTab(MDBottomNavigationItem):
             content_cls=EditPesticideDialog(
                 catalog_instance=self,
                 pesticide_data=new_pesticide,
-                save_callback=self.save_new_pesticide,
-                delete_callback=None,
-                cancel_callback=self.cancel_edit
             ),
             size_hint=(0.9, 0.8),
             auto_dismiss=False
         )
+         
         self.edit_dialog.open()
 
-    def save_new_pesticide(self, new_data):
-        """Сохранить новый препарат"""
-        print(f"💾 Создан новый препарат: {new_data['name']}")
-        
-        try:
-            # Закрываем меню если оно открыто
-            if hasattr(self, 'edit_dialog') and self.edit_dialog:
-                content = self.edit_dialog.content_cls
-                if hasattr(content, 'type_menu') and content.type_menu:
-                    content.type_menu.dismiss()
+    def confirm_delete_pesticide(self, pesticide):
+        """Диалог подтверждения удаления препарата"""
+        self.confirm_dialog = MDDialog(
+            title="Удаление препарата",
+            text=f"Удалить препарат «{pesticide.get('name', '')}»?\nЭто действие нельзя отменить.",
+            buttons=[
+                MDFlatButton(
+                    text="Отмена",
+                    on_release=lambda x: self.confirm_dialog.dismiss()
+                ),
+                MDRaisedButton(
+                    text="Удалить",
+                    md_bg_color=(1, 0, 0, 1),  # красный
+                    on_release=lambda x: self._on_confirm_delete(pesticide)
+                ),
+            ],
+        )
+        self.confirm_dialog.open()
 
-            # Добавляем ID и форматируем цену
-            new_data['id'] = len(self.test_pesticides) + 1
-            
-            # Заполняем обязательные поля если они пустые
-            if not new_data.get('name'):
-                new_data['name'] = 'Новый препарат'
-            
-            if new_data.get('price'):
-                if 'руб' not in str(new_data['price']):
-                    new_data['price'] = f"{new_data['price']} руб."
-            else:
-                new_data['price'] = 'Цена не указана'
-            
-            if not new_data.get('unit'):
-                new_data['unit'] = 'шт'
-            if not new_data.get('type'):
-                new_data['type'] = 'Гербициды'
-            
-            # Добавляем новый препарат в список
-            self.test_pesticides.append(new_data)
-            
-            # Закрываем диалог редактирования
-            if self.edit_dialog:
-                self.edit_dialog.dismiss()
-            
-            # Обновляем список препаратов
-            self.refresh_data()
-            
-            # Показываем сообщение об успехе
-            self._show_success_message(f"Препарат '{new_data['name']}' создан")
-            
-        except Exception as e:
-            print(f"❌ Ошибка создания: {e}")
-            self._show_error_message(f"Ошибка создания: {e}")
+    def _on_confirm_delete(self, pesticide):
+        """Действие при подтверждении удаления"""
+        self.confirm_dialog.dismiss()
+        if self.detail_dialog:
+            self.detail_dialog.dismiss()
+        self.delete_pesticide(pesticide)
 
     
     def search_pesticides(self, query):
@@ -1320,8 +1308,12 @@ class CatalogTab(MDBottomNavigationItem):
             return
         
         # Список доступных культур (можно загружать из БД)
-        cultures = ["Пшеница", "Ячмень", "Кукуруза", "Подсолнечник", "Соя", "Рапс", "Сахарная свекла", "Картофель"]
-        
+        # cultures = ["Пшеница", "Ячмень", "Кукуруза", "Подсолнечник", "Соя", "Рапс", "Сахарная свекла", "Картофель"]
+         # Загружаем реальные культуры
+        app = MDApp.get_running_app()
+        cursor = app.db.connection.cursor()
+        cursor.execute("SELECT culture_name FROM cultures ORDER BY culture_name")
+        cultures = [row['culture_name'] for row in cursor.fetchall()]
         menu_items = [
             {
                 "text": culture,
@@ -1391,30 +1383,149 @@ class CatalogTab(MDBottomNavigationItem):
         unique_cultures = sorted(set([c for c in all_cultures if c]))
         self._update_culture_menu_items(unique_cultures)
 
+    def save_new_pesticide(self, new_data):
+        if not new_data.get('name'):
+            self._show_error_message("Название препарата обязательно!")
+            return
+        try:
+            app = MDApp.get_running_app()
+            db = app.db
+            cursor = db.connection.cursor()
+
+            # Определяем type_id
+            type_name = new_data.get('type', 'Гербициды')
+            cursor.execute("SELECT id FROM pesticide_types WHERE type_name = ?", (type_name,))
+            res = cursor.fetchone()
+            if not res:
+                cursor.execute("INSERT INTO pesticide_types (type_name) VALUES (?)", (type_name,))
+                type_id = cursor.lastrowid
+            else:
+                type_id = res['id']
+
+            # Вставляем препарат
+            cursor.execute('''
+                INSERT INTO pesticides (name, description, application_rate, packaging, price, manufacturer, pesticide_type_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                new_data['name'],
+                new_data.get('description', ''),
+                new_data.get('application_rate', ''),
+                new_data.get('packaging', ''),
+                new_data.get('price', '0').replace(',', '.'),
+                new_data.get('manufacturer', ''),
+                type_id
+            ))
+            pesticide_id = cursor.lastrowid
+
+            # Вставляем действующие вещества
+            substances_str = new_data.get('substances', '')
+            if substances_str:
+                substances = self._parse_substances(substances_str)
+                seen = set()
+                for substance_name, concentration in substances:
+                    if not substance_name:
+                        continue
+                    key = (substance_name, concentration)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    cursor.execute("SELECT id FROM active_substances WHERE substance_name = ?", (substance_name,))
+                    res = cursor.fetchone()
+                    if not res:
+                        cursor.execute("INSERT INTO active_substances (substance_name) VALUES (?)", (substance_name,))
+                        substance_id = cursor.lastrowid
+                    else:
+                        substance_id = res['id']
+                    cursor.execute("INSERT INTO pesticide_active_substances (pesticide_id, substance_id, concentration) VALUES (?, ?, ?)",
+                                (pesticide_id, substance_id, concentration))
+
+            # Культуры
+            cultures_str = new_data.get('cultures', '')
+            if cultures_str:
+                culture_list = [c.strip() for c in cultures_str.split(',') if c.strip()]
+                for cult_name in culture_list:
+                    cursor.execute("SELECT id FROM cultures WHERE culture_name = ?", (cult_name,))
+                    res = cursor.fetchone()
+                    if not res:
+                        cursor.execute("INSERT INTO cultures (culture_name) VALUES (?)", (cult_name,))
+                        culture_id = cursor.lastrowid
+                    else:
+                        culture_id = res['id']
+                    cursor.execute("INSERT OR IGNORE INTO pesticide_cultures (pesticide_id, culture_id) VALUES (?, ?)", (pesticide_id, culture_id))
+
+            # Болезни
+            diseases_str = new_data.get('diseases', '')
+            if diseases_str:
+                disease_list = [d.strip() for d in diseases_str.split(',') if d.strip()]
+                for dis_name in disease_list:
+                    cursor.execute("SELECT id FROM diseases WHERE disease_name = ?", (dis_name,))
+                    res = cursor.fetchone()
+                    if not res:
+                        cursor.execute("INSERT INTO diseases (disease_name) VALUES (?)", (dis_name,))
+                        disease_id = cursor.lastrowid
+                    else:
+                        disease_id = res['id']
+                    cursor.execute("INSERT OR IGNORE INTO pesticide_diseases (pesticide_id, disease_id) VALUES (?, ?)", (pesticide_id, disease_id))
+
+            db.connection.commit()
+
+            self._show_success_message(f"Препарат '{new_data['name']}' создан")
+            if self.edit_dialog:
+                self.edit_dialog.dismiss()
+                 
+            self.refresh_data()
+        except Exception as e:
+            print(f"❌ Ошибка создания препарата: {e}")
+            self._show_error_message(f"Ошибка создания: {e}")
+
+    # def open_disease_menu(self):
+    #     """Открыть меню выбора заболеваний ПОД полем"""
+    #     if not self.filter_dialog:
+    #         return
+    #     if self.disease_menu and self.disease_menu.parent:
+    #         self.disease_menu.dismiss()
+    #         self.disease_menu = None
+    #         return
+        
+    #     # Список доступных заболеваний (можно загружать из БД)
+    #     diseases = [
+    #         "Мучнистая роса", "Парша", "Ржавчина", "Фитофтороз", "Антракноз",
+    #         "Бактериальная пятнистость", "Вирус мозаики", "Серая гниль", "Черная пятнистость"
+    #     ]
+        
+    #     menu_items = [
+    #         {
+    #             "text": disease,
+    #             "viewclass": "OneLineListItem",
+    #             "height": dp(48),
+    #             "on_release": lambda x=disease: self.select_disease(x),
+    #         } for disease in diseases
+    #     ]
+        
+    #     self.disease_menu = MDDropdownMenu(
+    #         caller=self.filter_dialog.content_cls.ids.disease_filter,
+    #         items=menu_items,
+    #         width=dp(200),
+    #         max_height=dp(150),
+    #         position="auto",
+    #         ver_growth="down"
+    #     )
+    #     self.disease_menu.open()
     def open_disease_menu(self):
-        """Открыть меню выбора заболеваний ПОД полем"""
         if not self.filter_dialog:
             return
         if self.disease_menu and self.disease_menu.parent:
             self.disease_menu.dismiss()
             self.disease_menu = None
             return
-        
-        # Список доступных заболеваний (можно загружать из БД)
-        diseases = [
-            "Мучнистая роса", "Парша", "Ржавчина", "Фитофтороз", "Антракноз",
-            "Бактериальная пятнистость", "Вирус мозаики", "Серая гниль", "Черная пятнистость"
-        ]
-        
+        app = MDApp.get_running_app()
+        cursor = app.db.connection.cursor()
+        cursor.execute("SELECT disease_name FROM diseases ORDER BY disease_name")
+        diseases = [row['disease_name'] for row in cursor.fetchall()]
         menu_items = [
-            {
-                "text": disease,
-                "viewclass": "OneLineListItem",
-                "height": dp(48),
-                "on_release": lambda x=disease: self.select_disease(x),
-            } for disease in diseases
+            {"text": d, "viewclass": "OneLineListItem", "height": dp(48),
+            "on_release": lambda x=d: self.select_disease(x)} for d in diseases
         ]
-        
         self.disease_menu = MDDropdownMenu(
             caller=self.filter_dialog.content_cls.ids.disease_filter,
             items=menu_items,
@@ -1546,250 +1657,182 @@ class CatalogTab(MDBottomNavigationItem):
         
             
     def show_pesticide_details(self, pesticide):
-        """Показать детали препарата с действующими веществами"""
+        if self.detail_dialog and self.detail_dialog.parent:
+            return
+        if self.opening_details:
+            return
+        self.opening_details = True
         try:
-            # Преобразуем pesticide в словарь если это Row объект
-            if not hasattr(pesticide, 'get') and hasattr(pesticide, '__getitem__'):
-                # Это уже словарь или что-то подобное
-                pesticide_data = pesticide
-            else:
-                # Преобразуем Row в dict
-                pesticide_data = dict(pesticide) if hasattr(pesticide, '_asdict') else pesticide
-            
+            pesticide_data = pesticide if isinstance(pesticide, dict) else dict(pesticide)
             print(f"📋 Детали препарата: {pesticide_data.get('name', 'Unknown')}")
-            
-            # Сохраняем ссылку на текущий препарат
             self.current_editing_pesticide = pesticide_data
-            
-            # Получаем полные данные с ДВ из БД
+    # Получаем культуры и болезни из БД
             app = MDApp.get_running_app()
-            try:
-                # Получаем препарат с веществами
-                full_pesticide_data = app.db.get_pesticide_with_substances(pesticide_data['id'])
-                if not full_pesticide_data:
-                    full_pesticide_data = [pesticide_data]  # Fallback
-            except Exception as e:
-                print(f"❌ Ошибка получения полных данных: {e}")
-                full_pesticide_data = [pesticide_data]
-            
-            # Формируем строку с действующими веществами
-            substances_text = ""
-            if len(full_pesticide_data) > 0:
-                # Проверяем первый элемент на наличие substance_name
-                first_item = full_pesticide_data[0]
-                if hasattr(first_item, 'get'):
-                    item_dict = first_item
-                else:
-                    item_dict = dict(first_item) if hasattr(first_item, '_asdict') else first_item
-                
-                if 'substance_name' in item_dict and item_dict['substance_name']:
-                    for substance_item in full_pesticide_data:
-                        if hasattr(substance_item, 'get'):
-                            substance_dict = substance_item
-                        else:
-                            substance_dict = dict(substance_item) if hasattr(substance_item, '_asdict') else substance_item
-                        
-                        if substance_dict.get('substance_name') and substance_dict.get('concentration'):
-                            substances_text += f"• {substance_dict['substance_name']} ({substance_dict['concentration']})\n"
-                elif 'substances' in pesticide_data and pesticide_data['substances']:
-                    # Альтернативный формат
-                    substances_str = str(pesticide_data.get('substances', ''))
-                    if substances_str and substances_str != 'None':
-                        substances_list = substances_str.split('||')
-                        for substance_info in substances_list:
-                            if substance_info.strip():
-                                substances_text += f"• {substance_info.strip()}\n"
-            
+            cursor = app.db.connection.cursor()
+
+            cultures_list = []
+            if 'id' in pesticide_data:
+                cursor.execute('''
+                    SELECT c.culture_name
+                    FROM pesticide_cultures pc
+                    JOIN cultures c ON pc.culture_id = c.id
+                    WHERE pc.pesticide_id = ?
+                ''', (pesticide_data['id'],))
+                cultures_list = [row['culture_name'] for row in cursor.fetchall()]
+
+            diseases_list = []
+            if 'id' in pesticide_data:
+                cursor.execute('''
+                    SELECT d.disease_name
+                    FROM pesticide_diseases pd
+                    JOIN diseases d ON pd.disease_id = d.id
+                    WHERE pd.pesticide_id = ?
+                ''', (pesticide_data['id'],))
+                diseases_list = [row['disease_name'] for row in cursor.fetchall()]
+
+            cultures_str = ", ".join(cultures_list) if cultures_list else "Не указаны"
+            diseases_str = ", ".join(diseases_list) if diseases_list else "Не указаны"
+
+            # Действующие вещества (как раньше)
+            raw_substances = pesticide_data.get('substances', '')
+            substances_text = self._format_substances(raw_substances)
             if not substances_text:
                 substances_text = "Действующие вещества не указаны"
-            
-            # Получаем остальную информацию
+            else:
+                substances_text = substances_text.replace('\n', ', ')
+
             pesticide_type = pesticide_data.get('pesticide_type', pesticide_data.get('type', 'Не указано'))
             price = pesticide_data.get('price', '')
-            
             if isinstance(price, (int, float)):
                 price_display = f"{int(price)} руб."
             else:
                 price_display = str(price) if price else 'Не указана'
-            
-            # Создаем детальную информацию
-            detail_text = f"""[color=000000]
-    [b]Действующие вещества:[/b]
+
+            # detail_text = f"""[color=000000]
+    # [b]Действующие вещества:[/b]
+    # {substances_text}
+
+
+    # [b]Описание:[/b]
+    # {pesticide_data.get('description', 'Не указано')}
+
+    # [b]Норма расхода:[/b] {pesticide_data.get('application_rate', 'Не указано')}
+    # [b]Фасовка:[/b] {pesticide_data.get('packaging', 'Не указано')}
+    # [b]Цена:[/b] {price_display}
+    # [b]Производитель:[/b] {pesticide_data.get('manufacturer', 'Не указано')}
+
+    # [b]Тип пестицида:[/b] {pesticide_type}
+
+    # [b]Культуры:[/b]
+    # {cultures_str}
+
+    # [b]Болезни:[/b]
+    # {diseases_str}
+    # [/color]"""
+            detail_text = f"""
+    Действующие вещества:
     {substances_text}
 
-    [b]Описание:[/b]
+    Описание:
     {pesticide_data.get('description', 'Не указано')}
 
-    [b]Норма расхода:[/b] {pesticide_data.get('application_rate', 'Не указано')}
-    [b]Фасовка:[/b] {pesticide_data.get('packaging', 'Не указано')}
-    [b]Цена:[/b] {price_display}
-    [b]Производитель:[/b] {pesticide_data.get('manufacturer', 'Не указано')}
+    Норма расхода: {pesticide_data.get('application_rate', 'Не указано')}
+    Фасовка: {pesticide_data.get('packaging', 'Не указано')}
+    Цена: {price_display}
+    Производитель: {pesticide_data.get('manufacturer', 'Не указано')}
 
-    [b]Тип пестицида:[/b] {pesticide_type}
-    [/color]"""
+    Тип пестицида: {pesticide_type}
+
+    Культуры:
+    {cultures_str}
+
+    Болезни:
+    {diseases_str}
+    """
+
+            # Создаём метку с явным размером шрифта (например, 14sp)
+            from kivy.metrics import sp
+            label = MDLabel(
+                text=detail_text,
+                font_size=sp(14),
+                halign='left',
+                valign='top',
+                size_hint_y=None,
+                padding=(10, 10)
+            )
+            # label.font_name = 'Roboto'
+            label.bind(texture_size=label.setter('size'))
             
-            # Создаем кнопки
+            # # Создаём прокручиваемую метку
+            # label = MDLabel(
+            #     text=detail_text,          # detail_text уже содержит BB-разметку
+            #     markup=True, 
+            #     size_hint_y=None,
+            #     halign='left',
+            #     valign='top',
+            #     padding=(10, 10)
+            # )
+            # label.bind(texture_size=label.setter('size'))
+            scroll = ScrollView(size_hint=(1, 1))
+            scroll.add_widget(label)
+
+            # Контейнер с фиксированной высотой, чтобы диалог не схлопнулся
+            container = MDBoxLayout(orientation='vertical', size_hint_y=None, height=dp(350))
+            container.add_widget(scroll)    
+
             buttons = [
                 MDIconButton(
                     icon="close",
                     theme_icon_color="Custom",
-                    icon_color="gray",
-                    on_release=lambda x: self.detail_dialog.dismiss()
+                    icon_color="red",
+                    on_release=lambda x: self.detail_dialog.dismiss() if self.detail_dialog else None
                 ),
-                MDRaisedButton(
-                    text="Добавить в заказ",
-                    on_release=lambda x: self.add_to_order(pesticide_data)
-                )
             ]
-            
-            # Добавляем кнопку редактирования ДВ если у препарата есть ID
             if 'id' in pesticide_data:
                 buttons.insert(1, MDIconButton(
-                    icon="flask",
+                    icon="pencil-outline",
                     theme_icon_color="Custom",
-                    icon_color="blue",
-                    on_release=lambda x: self.app.show_substance_editor(pesticide_data['id'])
+                    icon_color="green",
+                    on_release=lambda x, pd=pesticide_data: self.edit_pesticide(pd)
                 ))
-            
+                #  кнопка «Удалить»
+                buttons.insert(2, MDIconButton(
+                    icon="delete",
+                    theme_icon_color="Custom",
+                    icon_color="red",
+                    on_release=lambda x, pd=pesticide_data: self.confirm_delete_pesticide(pd)
+                ))
+
             self.detail_dialog = MDDialog(
                 title=pesticide_data.get('name', 'Без названия'),
-                text=detail_text.strip(),
+                type="custom",
+                content_cls=container,       
                 size_hint=(0.9, 0.8),
                 buttons=buttons
             )
             self.detail_dialog.open()
-            
-        except Exception as e:
-            print(f"❌ Ошибка отображения деталей препарата: {e}")
-            self._show_error_message(f"Ошибка отображения деталей: {e}")
+        finally:
+            self.opening_details = False
 
    
     def edit_pesticide(self, pesticide):
-        """Редактирование препарата"""
-        print(f"✏️ Редактирование препарата: {pesticide['name']}")
-        
-        # Закрываем детальный диалог если открыт
         if hasattr(self, 'detail_dialog') and self.detail_dialog:
             self.detail_dialog.dismiss()
-        
-        # Сохраняем препарат для редактирования
         self.current_editing_pesticide = pesticide
-        
-        # Создаем или обновляем диалог редактирования
-        if not hasattr(self, 'edit_dialog') or not self.edit_dialog:
-            self._create_edit_dialog()
-        
-        # Заполняем поля данными препарата
-        self._populate_edit_fields(pesticide)
-        
-        # Открываем диалог
-        self.edit_dialog.open()
-
-    def _create_edit_dialog(self):
-        """Создание диалога редактирования препарата"""
-        # Создаем поля формы (БЕЗ поля "Единица измерения")
-        self.name_field = MDTextField(
-            hint_text="Название препарата",
-            mode="rectangle",
-            size_hint_x=1
-        )
-        
-        self.description_field = MDTextField(
-            hint_text="Описание",
-            mode="rectangle",
-            size_hint_x=1,
-            multiline=True
-        )
-        
-        self.application_rate_field = MDTextField(
-            hint_text="Норма расхода",
-            mode="rectangle",
-            size_hint_x=1
-        )
-        
-        self.packaging_field = MDTextField(
-            hint_text="Фасовка",
-            mode="rectangle",
-            size_hint_x=1
-        )
-        
-        self.price_field = MDTextField(
-            hint_text="Цена",
-            mode="rectangle",
-            size_hint_x=1,
-            input_filter='float'
-        )
-        
-        self.manufacturer_field = MDTextField(
-            hint_text="Производитель",
-            mode="rectangle",
-            size_hint_x=1
-        )
-        
-        # Кнопка для редактирования ДВ
-        self.edit_substances_btn = MDRectangleFlatButton(
-            text="Редактировать действующие вещества",
-            size_hint_x=1,
-            on_release=lambda x: self._edit_substances()
-        )
-        
-        # Тип пестицида
-        self.type_field = MDTextField(
-            hint_text="Тип пестицида",
-            mode="rectangle",
-            size_hint_x=1
-        )
-        
-        # Создаем контейнер для полей
-        content = BoxLayout(
-            orientation='vertical',
-            spacing=dp(10),
-            padding=dp(15)
-        )
-        
-        # Добавляем поля в контейнер
-        content.add_widget(self.name_field)
-        content.add_widget(self.description_field)
-        content.add_widget(self.application_rate_field)
-        content.add_widget(self.packaging_field)
-        content.add_widget(self.price_field)
-        content.add_widget(self.manufacturer_field)
-        content.add_widget(self.edit_substances_btn)  # Кнопка редактирования ДВ
-        content.add_widget(self.type_field)
-        
-        # Создаем диалог
         self.edit_dialog = MDDialog(
             title="Редактирование препарата",
             type="custom",
-            content_cls=content,
-            size_hint=(0.9, 0.8),
-            buttons=[
-                MDFlatButton(
-                    text="Отмена",
-                    theme_text_color="Custom",
-                    text_color=self.app.theme_cls.primary_color,
-                    on_release=lambda x: self.edit_dialog.dismiss()
-                ),
-                MDRaisedButton(
-                    text="Сохранить",
-                    on_release=lambda x: self._save_pesticide_edit()
-                )
-            ]
+            content_cls=EditPesticideDialog(
+                catalog_instance=self,
+                pesticide_data=pesticide
+            ),
+            size_hint=(0.9, 0.9),
+            auto_dismiss=False
         )
+         
+        self.edit_dialog.open()
 
-    def _populate_edit_fields(self, pesticide):
-        """Заполнение полей формы данными препарата"""
-        self.name_field.text = pesticide.get('name', '')
-        self.description_field.text = pesticide.get('description', '')
-        self.application_rate_field.text = pesticide.get('application_rate', '')
-        self.packaging_field.text = pesticide.get('packaging', '')
-        self.price_field.text = str(pesticide.get('price', ''))
-        self.manufacturer_field.text = pesticide.get('manufacturer', '')
-        
-        # Тип пестицида
-        pesticide_type = pesticide.get('pesticide_type', pesticide.get('type', ''))
-        self.type_field.text = pesticide_type
-
+   
     def _edit_substances(self):
         """Редактирование действующих веществ"""
         if self.current_editing_pesticide and self.current_editing_pesticide.get('id'):
@@ -1800,73 +1843,151 @@ class CatalogTab(MDBottomNavigationItem):
             # Открываем редактор ДВ
             self.app.show_substance_editor(self.current_editing_pesticide['id'])
 
-    def _save_pesticide_edit(self):
-        """Сохранение изменений препарата"""
-        try:
-            # Получаем данные из полей
-            updated_pesticide = {
-                'name': self.name_field.text,
-                'description': self.description_field.text,
-                'application_rate': self.application_rate_field.text,
-                'packaging': self.packaging_field.text,
-                'price': float(self.price_field.text) if self.price_field.text else 0.0,
-                'manufacturer': self.manufacturer_field.text,
-                'pesticide_type': self.type_field.text
-            }
-            
-            # Здесь должен быть код сохранения в БД 
-            print(f"💾 Сохранены изменения препарата: {updated_pesticide['name']}")
-            # Закрываем диалог
-            self.edit_dialog.dismiss()            
-            # Обновляем отображение в каталоге
-            self.refresh_data()
-        except Exception as e:
-            print(f"❌ Ошибка сохранения препарата: {e}")
+    # def _save_pesticide_edit(self):
+    #     """Сохранение изменений препарата (вызывается из диалога)"""
+    #     try:
+    #         dialog = self.edit_dialog.content_cls  # сам EditPesticideDialog
+    #         updated_pesticide = {
+    #             'name': dialog.ids.edit_name.text,
+    #             'description': dialog.ids.edit_description.text,
+    #             'application_rate': dialog.ids.edit_application_rate.text,
+    #             'packaging': dialog.ids.edit_packaging.text,
+    #             'price': float(dialog.ids.edit_price.text) if dialog.ids.edit_price.text else 0.0,
+    #             'manufacturer': dialog.ids.edit_manufacturer.text,
+    #             'pesticide_type': dialog.ids.edit_type.text
+    #         }
+    #         # Если это существующий препарат, добавляем id
+    #         if self.current_editing_pesticide and 'id' in self.current_editing_pesticide:
+    #             updated_pesticide['id'] = self.current_editing_pesticide['id']
+
+    #         print(f"💾 Сохранены изменения препарата: {updated_pesticide['name']}")
+    #         # Здесь должен быть реальный UPDATE в БД
+    #         self.edit_dialog.dismiss()
+    #         self.refresh_data()
+    #     except Exception as e:
+    #         print(f"❌ Ошибка сохранения препарата: {e}")
 
     def save_pesticide_changes(self, updated_data):
-        """Сохранить изменения препарата"""
-        print(f"💾 Сохранены изменения: {updated_data['name']}")
-        
         try:
-            # Находим препарат в тестовых данных и обновляем его
-            for i, pesticide in enumerate(self.test_pesticides):
-                if pesticide['id'] == self.current_editing_pesticide['id']:
-                    # Форматируем цену
-                    if 'price' in updated_data and updated_data['price']:
-                        if 'руб' not in str(updated_data['price']):
-                            updated_data['price'] = f"{updated_data['price']} руб."
-                    
-                    # Обновляем все поля препарата
-                    self.test_pesticides[i].update(updated_data)
-                    break
-            
-            # Закрываем диалог редактирования
+            app = MDApp.get_running_app()
+            db = app.db
+            cursor = db.connection.cursor()
+
+            pesticide_id = updated_data.get('id')
+            if not pesticide_id:
+                return  # новый препарат пока не поддерживается, но можно добавить
+
+            # Обновляем основные поля препарата
+            cursor.execute('''
+                UPDATE pesticides 
+                SET name = ?, description = ?, application_rate = ?, packaging = ?, 
+                    price = ?, manufacturer = ?, pesticide_type_id = (
+                        SELECT id FROM pesticide_types WHERE type_name = ?
+                    )
+                WHERE id = ?
+            ''', (
+                updated_data['name'],
+                updated_data['description'],
+                updated_data['application_rate'],
+                updated_data['packaging'],
+                updated_data['price'].replace(',', '.') if updated_data['price'] else '0',
+                updated_data['manufacturer'],
+                updated_data['type'],
+                pesticide_id
+            ))
+
+            # Обновляем действующие вещества
+            substances_str = updated_data.get('substances', '')
+            # Удаляем старые связи
+            cursor.execute("DELETE FROM pesticide_active_substances WHERE pesticide_id = ?", (pesticide_id,))
+            if substances_str:
+                # Парсим строку так же, как при импорте
+                substances = self._parse_substances(substances_str)   # нужно добавить этот метод в CatalogTab
+                seen = set()
+                for substance_name, concentration in substances:
+                    if not substance_name:
+                        continue
+                    key = (substance_name, concentration)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    cursor.execute("SELECT id FROM active_substances WHERE substance_name = ?", (substance_name,))
+                    res = cursor.fetchone()
+                    if not res:
+                        cursor.execute("INSERT INTO active_substances (substance_name) VALUES (?)", (substance_name,))
+                        substance_id = cursor.lastrowid
+                    else:
+                        substance_id = res[0]
+                    cursor.execute("INSERT INTO pesticide_active_substances (pesticide_id, substance_id, concentration) VALUES (?, ?, ?)",
+                                (pesticide_id, substance_id, concentration))
+
+            # Обновляем культуры и болезни (аналогично, можно сделать позже)
+            # Пока оставим заглушки или тоже обновим
+            # Например, для культур:
+            if 'cultures' in updated_data:
+                cursor.execute("DELETE FROM pesticide_cultures WHERE pesticide_id = ?", (pesticide_id,))
+                culture_list = [c.strip() for c in updated_data['cultures'].split(',') if c.strip()]
+                for cult_name in culture_list:
+                    cursor.execute("SELECT id FROM cultures WHERE culture_name = ?", (cult_name,))
+                    res = cursor.fetchone()
+                    if not res:
+                        cursor.execute("INSERT INTO cultures (culture_name) VALUES (?)", (cult_name,))
+                        culture_id = cursor.lastrowid
+                    else:
+                        culture_id = res[0]
+                    cursor.execute("INSERT OR IGNORE INTO pesticide_cultures (pesticide_id, culture_id) VALUES (?, ?)", (pesticide_id, culture_id))
+
+            # Болезни – аналогично
+            if 'diseases' in updated_data:
+                cursor.execute("DELETE FROM pesticide_diseases WHERE pesticide_id = ?", (pesticide_id,))
+                disease_list = [d.strip() for d in updated_data['diseases'].split(',') if d.strip()]
+                for dis_name in disease_list:
+                    cursor.execute("SELECT id FROM diseases WHERE disease_name = ?", (dis_name,))
+                    res = cursor.fetchone()
+                    if not res:
+                        cursor.execute("INSERT INTO diseases (disease_name) VALUES (?)", (dis_name,))
+                        disease_id = cursor.lastrowid
+                    else:
+                        disease_id = res[0]
+                    cursor.execute("INSERT OR IGNORE INTO pesticide_diseases (pesticide_id, disease_id) VALUES (?, ?)", (pesticide_id, disease_id))
+
+            db.connection.commit()
+            # Закрываем диалог
             if self.edit_dialog:
                 self.edit_dialog.dismiss()
-            
-            # Закрываем диалог деталей препарата (если открыт)
-            if self.detail_dialog:
-                self.detail_dialog.dismiss()
-            
-            # Обновляем список препаратов
-            self.refresh_data()            
-            # Показываем сообщение об успехе
-            self._show_success_message(f"Препарат '{updated_data['name']}' обновлен")
-            
+                 
+            self.refresh_data()
+            self._show_success_message(f"Препарат '{updated_data['name']}' обновлён")
         except Exception as e:
             print(f"❌ Ошибка сохранения: {e}")
             self._show_error_message(f"Ошибка сохранения: {e}")
     
     def delete_pesticide(self, pesticide):
-        """Удалить препарат"""
-        print(f"🗑️ Удален препарат: {pesticide['name']}")
-        self.show_snackbar(f"Препарат '{pesticide['name']}' удален")
-        
-        if self.edit_dialog:
-            self.edit_dialog.dismiss()
-        
-        # Обновляем список
-        self.refresh_data()
+        """Удалить препарат из базы данных"""
+        pesticide_id = pesticide.get('id')
+        if not pesticide_id:
+            return
+        try:
+            app = MDApp.get_running_app()
+            db = app.db
+            cursor = db.connection.cursor()
+            # Удаляем связанные записи (каскадное удаление не настроено)
+            cursor.execute("DELETE FROM pesticide_active_substances WHERE pesticide_id = ?", (pesticide_id,))
+            cursor.execute("DELETE FROM pesticide_cultures WHERE pesticide_id = ?", (pesticide_id,))
+            cursor.execute("DELETE FROM pesticide_diseases WHERE pesticide_id = ?", (pesticide_id,))
+            cursor.execute("DELETE FROM pesticides WHERE id = ?", (pesticide_id,))
+            db.connection.commit()
+            print(f"🗑️ Препарат '{pesticide.get('name', '')}' удалён из БД")
+            self._show_success_message(f"Препарат '{pesticide.get('name', '')}' удалён")
+        except Exception as e:
+            print(f"❌ Ошибка удаления: {e}")
+            self._show_error_message(f"Ошибка удаления: {e}")
+        finally:
+            # Закрываем диалог редактирования, если открыт
+            if self.edit_dialog:
+                self.edit_dialog.dismiss()
+                 
+            self.refresh_data()
     
     def cancel_edit(self):
         """Отменить редактирование"""
@@ -1875,18 +1996,20 @@ class CatalogTab(MDBottomNavigationItem):
             content = self.edit_dialog.content_cls
             if hasattr(content, 'type_menu') and content.type_menu:
                 content.type_menu.dismiss()
+                 
         
         if self.edit_dialog:
             self.edit_dialog.dismiss()
+             
         self.current_editing_pesticide = None
     
-    def add_to_order(self, pesticide):
-        """Добавить препарат в заказ"""
-        print(f"🛒 Добавлен в заказ: {pesticide['name']}")
-        if self.detail_dialog:
-            self.detail_dialog.dismiss()
+    # def add_to_order(self, pesticide):
+    #     """Добавить препарат в заказ"""
+    #     print(f"🛒 Добавлен в заказ: {pesticide['name']}")
+    #     if self.detail_dialog:
+    #         self.detail_dialog.dismiss()
         
-        self.show_snackbar(f"Препарат '{pesticide['name']}' добавлен в заказ")
+    #     self.show_snackbar(f"Препарат '{pesticide['name']}' добавлен в заказ")
        
     def select_pesticide_type(self, pesticide_type):
         """Выбрать тип пестицида в фильтрах"""
@@ -2083,7 +2206,7 @@ class CatalogTab(MDBottomNavigationItem):
             if hasattr(app.db, 'get_pesticides_with_substances'):
                 try:
                     pesticides = app.db.get_pesticides_with_substances()
-                    # Применяем фильтры так же как в _load_pesticides
+                    # Применяем фильтры
                     # filtered_pesticides = self._apply_filters(pesticides, 
                     #                                          self.ids.search_input.text, 
                     #                                          self.filters)

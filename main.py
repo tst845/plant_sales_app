@@ -47,7 +47,7 @@ class PlantProtectionApp(MDApp):
         # Добавляем экран диагностики (камера)
         camera_screen = CameraScreen(name='camera_screen')
         self.screen_manager.add_widget(camera_screen)
-        
+
         return self.screen_manager
     
     def show_substance_editor(self, pesticide_id):
@@ -76,7 +76,7 @@ class PlantProtectionApp(MDApp):
     def open_catalog(self):
         print("📚 Открыть каталог препаратов")
         # TODO: переключение на экран каталога, когда он будет добавлен
-        # self.screen_manager.current = 'catalog_screen'
+        self.screen_manager.current = 'catalog_screen'
     
     def open_orders(self):
         print("🛒 Открыть заказы и клиенты")

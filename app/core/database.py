@@ -316,11 +316,11 @@ class DatabaseManager:
                 pas.pesticide_id,
                 pas.substance_id,
                 pas.concentration,
-                as.substance_name
+                a.substance_name
             FROM pesticide_active_substances pas
-            JOIN active_substances as ON pas.substance_id = as.id
+            JOIN active_substances a ON pas.substance_id = a.id
             WHERE pas.pesticide_id = ?
-            ORDER BY as.substance_name
+            ORDER BY a.substance_name
         ''', (pesticide_id,))
         
         substances = []
@@ -330,7 +330,6 @@ class DatabaseManager:
                 'name': row['substance_name'],
                 'concentration': row['concentration']
             })
-        
         return substances
     # ======= После обновления БД =========
     def get_pesticides_with_substances(self):
@@ -389,37 +388,79 @@ class DatabaseManager:
 
     def get_pesticides_paginated(self, offset=0, limit=20, search='', filters=None, sort_by='name', sort_order='asc'):
         cursor = self.connection.cursor()
+        # Базовый запрос
         sql = """
-            SELECT p.*, pt.type_name as pesticide_type
+            SELECT DISTINCT p.*, pt.type_name as pesticide_type
             FROM pesticides p
             LEFT JOIN pesticide_types pt ON p.pesticide_type_id = pt.id
-            WHERE 1=1
         """
         params = []
+        # JOIN для культур и болезней только если они нужны
+        joins = []
+        where = ["1=1"]
+
+        # Поиск по названию/описанию
         if search:
-            sql += " AND (p.name LIKE ? OR p.description LIKE ?)"
+            where.append("(p.name LIKE ? OR p.description LIKE ?)")
             params.extend([f'%{search}%', f'%{search}%'])
+
+        # Фильтр по типу
         if filters and filters.get('type'):
-            # предполагаем, что filters['type'] - это список
             placeholders = ','.join(['?'] * len(filters['type']))
-            sql += f" AND pt.type_name IN ({placeholders})"
+            where.append(f"pt.type_name IN ({placeholders})")
             params.extend(filters['type'])
-        # Формируем ORDER BY без лишних символов
-        if sort_by == 'name':
-            order = f"ORDER BY p.name {sort_order}"
-        else:  # price
-            order = f"ORDER BY p.price {sort_order}"
-        sql += f" {order} LIMIT ? OFFSET ?"
+
+        # Фильтр по культурам
+        if filters and filters.get('cultures'):
+            joins.append("JOIN pesticide_cultures pc ON p.id = pc.pesticide_id")
+            joins.append("JOIN cultures c ON pc.culture_id = c.id")
+            placeholders = ','.join(['?'] * len(filters['cultures']))
+            where.append(f"c.culture_name IN ({placeholders})")
+            params.extend(filters['cultures'])
+
+        # Фильтр по болезням
+        if filters and filters.get('diseases'):
+            joins.append("JOIN pesticide_diseases pd ON p.id = pd.pesticide_id")
+            joins.append("JOIN diseases d ON pd.disease_id = d.id")
+            placeholders = ','.join(['?'] * len(filters['diseases']))
+            where.append(f"d.disease_name IN ({placeholders})")
+            params.extend(filters['diseases'])
+
+        # Фильтр по цене
+        if filters and filters.get('min_price') and filters['min_price'].strip():
+            where.append("p.price >= ?")
+            params.append(float(filters['min_price']))
+        if filters and filters.get('max_price') and filters['max_price'].strip():
+            where.append("p.price <= ?")
+            params.append(float(filters['max_price']))
+
+        # Собираем запрос
+        sql += " ".join(joins) + " WHERE " + " AND ".join(where)
+
+        # Сортировка
+        if sort_by == 'price':
+            sql += f" ORDER BY p.price {sort_order}"
+        else:
+            sql += f" ORDER BY p.name {sort_order}"
+
+        sql += " LIMIT ? OFFSET ?"
         params.extend([limit, offset])
-        print("DEBUG SQL:", sql)  # для отладки
+
+        print("DEBUG SQL:", sql)
         print("DEBUG PARAMS:", params)
+
         cursor.execute(sql, params)
         rows = cursor.fetchall()
         result = []
         for row in rows:
             d = dict(row)
-            # получаем действующие вещества
-            sub_sql = "SELECT GROUP_CONCAT(a.substance_name || ' ' || pas.concentration, '||') as substances FROM pesticide_active_substances pas JOIN active_substances a ON pas.substance_id = a.id WHERE pas.pesticide_id = ?"
+            # Получаем вещества отдельно
+            sub_sql = """
+                SELECT GROUP_CONCAT(a.substance_name || ' ' || pas.concentration, '||')
+                FROM pesticide_active_substances pas
+                JOIN active_substances a ON pas.substance_id = a.id
+                WHERE pas.pesticide_id = ?
+            """
             cursor.execute(sub_sql, (d['id'],))
             subs_row = cursor.fetchone()
             d['substances'] = subs_row[0] if subs_row and subs_row[0] else ''
