@@ -62,3 +62,27 @@ class MainScreen(Screen):
         bottom_nav.add_widget(CatalogTab())
         # bottom_nav.add_widget(OrdersTab())
         bottom_nav.add_widget(SettingsTab())
+
+    def set_diagnosis_filters(self, species_list, disease_list):
+        """Передать фильтры в CatalogTab и переключить вкладку"""
+        bottom_nav = self.ids.bottom_nav
+        # Найти вкладку CatalogTab по имени (name='catalog')
+        for child in bottom_nav.children:
+            if hasattr(child, 'name') and child.name == 'catalog':
+                child.set_diagnosis_filters(species_list, disease_list)
+                break
+        bottom_nav.switch_tab('catalog')
+    
+    def _setup_navigation(self):
+        bottom_nav = self.ids.bottom_nav
+        self.catalog_tab = CatalogTab()
+        bottom_nav.add_widget(DiagnosisTab())
+        bottom_nav.add_widget(self.catalog_tab)
+        bottom_nav.add_widget(SettingsTab())
+
+    def switch_to_catalog_with_filters(self, species_list, disease_list):
+        if self.catalog_tab:
+            self.catalog_tab.set_diagnosis_filters(species_list, disease_list)
+            # Принудительно обновляем каталог с новыми фильтрами
+            self.catalog_tab.refresh_data()
+        self.ids.bottom_nav.switch_tab('catalog')

@@ -13,11 +13,14 @@ from kivymd.uix.dialog import MDDialog
 from kivymd.uix.card import MDCard
 from kivymd.uix.toolbar import MDTopAppBar
 from kivymd.uix.progressbar import MDProgressBar
+from kivymd.app import MDApp
 
 from app.ml.inference import PlantModel
 import os 
 
 from tkinter import filedialog, Tk
+from app.ml.inference import species_ru, disease_ru   # в начало файла
+import numpy as np
 
 Builder.load_string('''
 #:import dp kivy.metrics.dp
@@ -159,6 +162,7 @@ class CameraScreen(Screen):
         self.opening_dialog = False          # блокировка повторного открытия диалога
         self.reset_in_progress = False # блокировка повторного сброса
         self.model = PlantModel()    
+        self.current_result = None
         # Загружаем модели сразу после запуска (отложенно, чтобы не тормозить UI)
         Clock.schedule_once(lambda dt: self.model.load_models(), 0.5)  
     
@@ -334,6 +338,7 @@ class CameraScreen(Screen):
 
     def show_analysis_result(self, result):
         """Показать результат анализа в нижней части экрана"""
+        self.current_result = result
         self.disable_buttons()  # блокируем кнопки
         # Подменяем картинку на размеченную
         if 'masked_image_path' in result and result['masked_image_path']:
@@ -389,12 +394,20 @@ class CameraScreen(Screen):
             height=dp(40),
             spacing=dp(10)
         )
+        # Кнопка "Подобрать препарат"
+        btn_find = MDRaisedButton(
+            text="Подобрать препарат",
+            size_hint_x=0.4,
+            md_bg_color=(0.2, 0.7, 0.2, 1),  # зелёный
+            on_release=lambda x: self.find_pesticides()
+        )
         button_box.add_widget(Widget())  # пустой виджет слева для отступа
         close_btn = MDRaisedButton(
             text="Закрыть",
             size_hint_x=0.3,
             on_release=lambda x: self.remove_result_widget(result_layout)
         )
+        button_box.add_widget(btn_find)
         button_box.add_widget(close_btn)
 
         result_layout.add_widget(title)
@@ -403,6 +416,37 @@ class CameraScreen(Screen):
 
         self.add_widget(result_layout)
         self.current_result_widget = result_layout
+
+    def find_pesticides(self):
+        if not self.current_result:
+            return
+        res = self.current_result
+        THRESHOLD = 0.95
+        species_probs = np.array(res['species_probs'])
+        disease_probs = np.array(res['disease_probs'])
+
+        if res['species_conf'] >= THRESHOLD:
+            species_indices = [res['species_idx']]
+        else:
+            species_indices = list(np.argsort(species_probs)[::-1][:3])
+        if res['disease_conf'] >= THRESHOLD:
+            disease_indices = [res['disease_idx']]
+        else:
+            disease_indices = list(np.argsort(disease_probs)[::-1][:3])
+
+        species_names = [species_ru.get(i, '') for i in species_indices]
+        disease_names = [disease_ru.get(i, '') for i in disease_indices]
+        species_names = [n for n in species_names if n and 'неизвест' not in n.lower()]
+        disease_names = [n for n in disease_names if n and 'неизвест' not in n.lower()]
+
+        print("DEBUG: species_names =", species_names)
+        print("DEBUG: disease_names =", disease_names)
+
+        # Передаём фильтры через главный экран до переключения вкладки
+        app = MDApp.get_running_app()
+        main_screen = app.screen_manager.get_screen('main')
+        main_screen.switch_to_catalog_with_filters(species_names, disease_names)
+
 
     def remove_result_widget(self, widget):
         """Удалить виджет результата"""

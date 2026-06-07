@@ -1064,7 +1064,7 @@ class CatalogTab(MDBottomNavigationItem):
             return "Действующие вещества не указаны"
         parts = substances_str.split('||')
         formatted = [part.strip() for part in parts if part.strip()]
-        print('def _format_substances formatted: ', formatted)
+        # print('def _format_substances formatted: ', formatted)
         return ', '.join(formatted) if formatted else "Действующие вещества не указаны"
 
     def _restore_scroll_position(self, viewport_height):
@@ -1220,6 +1220,40 @@ class CatalogTab(MDBottomNavigationItem):
             self.detail_dialog.dismiss()
         self.delete_pesticide(pesticide)
 
+    def set_diagnosis_filters(self, species_list, disease_list):
+        """Установить фильтры по культурам и болезням из результатов диагностики."""
+        print(f"DEBUG: set_diagnosis_filters called with species={species_list}, diseases={disease_list}")
+        self.filters = {}
+        self.selected_cultures = []
+        self.selected_diseases = []
+
+        app = MDApp.get_running_app()
+        cursor = app.db.connection.cursor()
+
+        existing_cultures = []
+        for name in species_list:
+            cursor.execute("SELECT id FROM cultures WHERE culture_name = ?", (name,))
+            row = cursor.fetchone()
+            print(f"DEBUG: culture '{name}' found: {row is not None}")
+            if row:
+                existing_cultures.append(name)
+        if existing_cultures:
+            self.selected_cultures = existing_cultures
+            self.filters['cultures'] = existing_cultures
+
+        existing_diseases = []
+        for name in disease_list:
+            cursor.execute("SELECT id FROM diseases WHERE disease_name = ?", (name,))
+            row = cursor.fetchone()
+            print(f"DEBUG: disease '{name}' found: {row is not None}")
+            if row:
+                existing_diseases.append(name)
+        if existing_diseases:
+            self.selected_diseases = existing_diseases
+            self.filters['diseases'] = existing_diseases
+
+        print("DEBUG: final filters =", self.filters)
+        self.refresh_data()
     
     def search_pesticides(self, query):
         """Поиск препаратов"""

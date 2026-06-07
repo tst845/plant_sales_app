@@ -247,5 +247,7 @@ class PlantModel:
             "disease_conf": float(disease_conf),
             "species_idx": int(species_top1),
             "disease_idx": int(disease_top1),
-            "masked_image_path": masked_path
+            "masked_image_path": masked_path,
+            "species_probs": species_probs[0].tolist(),
+            "disease_probs": disease_probs[0].tolist()
         }
