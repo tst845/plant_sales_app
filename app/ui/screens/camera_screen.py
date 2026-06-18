@@ -14,11 +14,23 @@ from kivymd.uix.card import MDCard
 from kivymd.uix.toolbar import MDTopAppBar
 from kivymd.uix.progressbar import MDProgressBar
 from kivymd.app import MDApp
-
+import pandas as pd
 from app.ml.inference import PlantModel
 import os 
+from kivy.utils import platform
 
-from tkinter import filedialog, Tk
+
+# На Android используем Plyer, на Windows – tkinter (старый код)
+if platform == 'android':
+    from plyer import camera, filechooser
+else:
+    camera = None
+    filechooser = None
+    # На десктопе остаётся tkinter для файлового диалога
+    from tkinter import filedialog, Tk
+
+import shutil
+
 from app.ml.inference import species_ru, disease_ru   # в начало файла
 import numpy as np
 
@@ -40,7 +52,7 @@ Builder.load_string('''
             height: dp(40)                      # чуть больше для удобства
             padding: [dp(10), 0, dp(10), 0]
             spacing: dp(10)
-            md_bg_color: app.theme_cls.primary_color    # тёмно-зелёный (можно поменять)
+            md_bg_color:  [0.95, 0.95, 0.95, 1]    # светло-серый фон
             
             MDLabel:
                 text: "Диагностика заболеваний"
@@ -48,14 +60,14 @@ Builder.load_string('''
                 size_hint_x: 1
                 size_hint_y: 1                  # занимает всю высоту
                 theme_text_color: "Custom"
-                text_color: (0, 0, 0, 1)       # белый текст на зелёном
+                text_color: (0, 0, 0, 1)      
                 halign: "center"
                 valign: "middle"
             
             MDIconButton:
                 icon: "help-circle-outline"
                 theme_icon_color: "Custom"
-                icon_color: (0, 0, 0, 1)       # белая иконка
+                icon_color: "green"        # белая иконка
                 size_hint: None, None
                 size: dp(32), dp(32)           # увеличил размер для лучшего касания
                 pos_hint: {"center_y": 0.5}    # центрирование внутри контейнера
@@ -93,7 +105,7 @@ Builder.load_string('''
                 pos_hint: {"top": 1, "right": 1}
                 opacity: 0
                 disabled: True
-                on_release: root.reset_image()
+                on_release: root._on_clear_pressed()
         
         # Статус и прогресс (изначально скрыты)
         MDBoxLayout:
@@ -118,37 +130,61 @@ Builder.load_string('''
                 size_hint_y: None
                 height: dp(20)
                     
-        # Кнопки действий (изначально пустой контейнер)
+        # Кнопки анализа и сброса (фиксированная высота, изначально невидимы)
         MDBoxLayout:
             id: action_buttons
             orientation: "horizontal"
             size_hint_y: None
-            height: 0
-            spacing: dp(10)
-            padding: dp(10)
+            height: dp(48)              # всегда занимает место
+            spacing: dp(20)
+            padding: [dp(10), 0, dp(10), 0]
+            opacity: 0                  # невидимы
+            disabled: True              # неактивны
+
+            MDIconButton:
+                id: analyze_btn
+                icon: "magnify"
+                theme_icon_color: "Custom"
+                icon_color: "white"
+                md_bg_color: "green"
+                size_hint_x: 0.5
+                on_release: root.start_analysis()
+
+            MDIconButton:
+                id: reset_btn
+                icon: "close-circle"
+                theme_icon_color: "Custom"
+                icon_color: "white"
+                md_bg_color: "green"
+                size_hint_x: 0.5
+                on_release: root.reset_image()
         
         # Кнопки выбора источника (всегда видны)
         MDBoxLayout:
             id: source_buttons
             orientation: "horizontal"
             size_hint_y: None
-            height: dp(100)
+            height: dp(48)
             spacing: dp(20)
-            padding: dp(10)
+            padding: [dp(10), 0, dp(10), 0]
                     
-            MDRaisedButton:
+            MDIconButton:
                 id: gallery_btn
-                text: "Галерея"
+                icon: "image"
+                theme_icon_color: "Custom"
+                icon_color: "white"
+                md_bg_color: "green"
                 size_hint_x: 0.5
                 on_release: root.use_gallery()
                     
-            MDRaisedButton:
+            MDIconButton:
                 id: camera_btn
-                text: "Камера"
+                icon: "camera"
+                theme_icon_color: "Custom"
+                icon_color: "white"
+                md_bg_color: "green"
                 size_hint_x: 0.5
                 on_release: root.use_camera()
-            
-  
 ''')
 
 class CameraScreen(Screen):
@@ -163,51 +199,74 @@ class CameraScreen(Screen):
         self.reset_in_progress = False # блокировка повторного сброса
         self.model = PlantModel()    
         self.current_result = None
+        self.mask_active = False
         # Загружаем модели сразу после запуска (отложенно, чтобы не тормозить UI)
         Clock.schedule_once(lambda dt: self.model.load_models(), 0.5)  
     
     def _add_action_buttons(self):
-        """Добавить кнопки действий в контейнер"""
-        action_buttons = self.ids.action_buttons
-        action_buttons.clear_widgets()
+        """Показать кнопки действий (Анализировать, Сбросить)"""
+        self.ids.action_buttons.opacity = 1
+        self.ids.action_buttons.disabled = False
         
-        btn_analyze = MDRaisedButton(
-            text="Анализировать",
-            icon="brain",
-            size_hint_x=0.5,
-            on_release=lambda x: self.start_analysis()
-        )
-        btn_reset = MDRaisedButton(
-            text="Сбросить",
-            icon="close-circle",
-            size_hint_x=0.5,
-            md_bg_color="gray",
-            on_release=lambda x: self.reset_image()
-        )
-        action_buttons.add_widget(btn_analyze)
-        action_buttons.add_widget(btn_reset)
-        action_buttons.height = dp(60)
-        action_buttons.opacity = 1
-
     def _remove_action_buttons(self):
-        """Удалить кнопки действий"""
-        self.ids.action_buttons.clear_widgets()
-        self.ids.action_buttons.height = 0
+        """Скрыть и отключить кнопки действий"""
         self.ids.action_buttons.opacity = 0
+        self.ids.action_buttons.disabled = True
+
+
 
     def use_camera(self):
-        """Заглушка для камеры"""
-        print("📷 Камера (будет реализовано позже)")
-        self.show_message("Камера", "Функция камеры в разработке")
-    
+        if platform == 'android':
+            try:
+                self.camera_callback = self._on_camera_success
+                camera.take_picture(filename=os.path.join(self._get_cache_dir(), 'camera_photo.jpg'),
+                                    on_complete=self.camera_callback)
+            except Exception as e:
+                self.show_error("Камера", f"Ошибка камеры: {e}")
+        else:
+            print("📷 Камера (будет реализовано позже)")
+            self.show_message("Камера", "Функция камеры в разработке")
+
     def use_gallery(self):
-        """Выбор файла из галереи"""
         if self.opening_dialog:
-            print("⚠️ Диалог уже открыт, игнорирую повторный вызов")
             return
-        print("🖼️ Открываем галерею")
         self.opening_dialog = True
-        self._open_file_dialog()
+        if platform == 'android':
+            try:
+                filechooser.open_file(title="Выберите изображение",
+                                    filters=[["Изображения", "*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff"]],
+                                    on_selection=self._on_gallery_selection)
+            except Exception as e:
+                self.show_error("Галерея", f"Ошибка галереи: {e}")
+                self.opening_dialog = False
+        else:
+            self._open_file_dialog()   # старый tkinter-диалог
+
+    def _on_gallery_selection(self, selection):
+        self.opening_dialog = False
+        if selection and len(selection) > 0:
+            file_path = selection[0]
+            Clock.schedule_once(lambda dt: self.load_image(file_path), 0)
+        else:
+            print("❌ Выбор отменён")
+
+    def _on_camera_success(self, file_path):
+        if file_path and os.path.exists(file_path):
+            dest = os.path.join(self._get_cache_dir(), 'camera_photo.jpg')
+            import shutil
+            shutil.copy(file_path, dest)
+            Clock.schedule_once(lambda dt: self.load_image(dest), 0)
+        else:
+            self.show_error("Камера", "Не удалось получить снимок")
+
+    def _get_cache_dir(self):
+        if platform == 'android':
+            from android.storage import app_storage_path
+            return app_storage_path()
+        else:
+            return os.path.join(os.getcwd(), 'temp')
+   
+
 
     def _open_file_dialog(self):
         Clock.schedule_once(lambda dt: self._real_open_file_dialog(), 0.1)
@@ -250,6 +309,7 @@ class CameraScreen(Screen):
         # Показываем крестик
         self.ids.clear_btn.opacity = 1
         self.ids.clear_btn.disabled = False
+
         print(f"📸 Изображение загружено, размер виджета: {image_widget.size}")
 
     def reset_image(self):
@@ -260,6 +320,7 @@ class CameraScreen(Screen):
         try:
             if not self.selected_image_path and self.ids.selected_image.source == "":
                 return
+            self.mask_active = False
             self.ids.selected_image.source = ""
             self.ids.selected_image.reload()
             self.selected_image_path = ""
@@ -336,9 +397,49 @@ class CameraScreen(Screen):
         else:
             self.ids.status_label.text = "Готово!"
 
+    def _format_result_text(self, result):
+        """Форматирует текст результата с процентами по правилам"""
+        THRESHOLD = 0.9
+        species_probs = result.get('species_probs')
+        disease_probs = result.get('disease_probs')
+        species_idx = result['species_idx']
+        disease_idx = result['disease_idx']
+        species_conf = result['species_conf']
+        disease_conf = result['disease_conf']
+        
+        # Вид
+        if species_conf >= THRESHOLD:
+            species_text = species_ru.get(species_idx, result['species'])
+        else:
+            # топ-3
+            indices = np.argsort(species_probs)[::-1][:3]
+            items = []
+            for i in indices:
+                name = species_ru.get(i, 'Неизвестно')
+                prob = species_probs[i] * 100
+                items.append(f"{name} ({prob:.1f}%)")
+            species_text = "не уверен, возможные варианты\n" + "\n".join(items)
+        
+        # Болезнь
+        if disease_conf >= THRESHOLD:
+            disease_text = disease_ru.get(disease_idx, result['disease'])
+        else:
+            indices = np.argsort(disease_probs)[::-1][:3]
+            items = []
+            for i in indices:
+                name = disease_ru.get(i, 'Неизвестно')
+                prob = disease_probs[i] * 100
+                items.append(f"{name} ({prob:.1f}%)")
+            disease_text = "не уверен, возможные варианты\n" + "\n".join(items)
+        species_part = f"[color=006400]Вид:[/color] {species_text}"
+        disease_part = f"[color=006400]Болезнь:[/color] {disease_text}"
+        # return f"Вид: {species_text}\n\nБолезнь: {disease_text}"
+        return f"{species_part}\n\n{disease_part}"
+
     def show_analysis_result(self, result):
         """Показать результат анализа в нижней части экрана"""
         self.current_result = result
+        self.mask_active = True
         self.disable_buttons()  # блокируем кнопки
         # Подменяем картинку на размеченную
         if 'masked_image_path' in result and result['masked_image_path']:
@@ -365,7 +466,7 @@ class CameraScreen(Screen):
             text="Результат диагностики",
             font_style="Subtitle1",
             theme_text_color="Custom",
-            text_color=(0, 0, 0, 1),   # чёрный цвет
+            text_color=(0, 0.25, 0, 1),   # зелёный цвет
             size_hint_y=None,
             height=dp(30),
             halign="center"
@@ -373,7 +474,9 @@ class CameraScreen(Screen):
         # Вместо обычного MDLabel используем ScrollView + MDLabel для длинного текста
         from kivy.uix.scrollview import ScrollView
         text_content = MDLabel(
-            text=f"Вид: {result['species']}\n\nБолезнь: {result['disease']}",
+            # text=f"Вид: {result['species']}\n\nБолезнь: {result['disease']}",
+            text=self._format_result_text(result),
+            markup=True,              # разрешить теги
             theme_text_color="Custom",
             text_color=(0, 0, 0, 1),
             size_hint_y=None,
@@ -398,12 +501,20 @@ class CameraScreen(Screen):
         btn_find = MDRaisedButton(
             text="Подобрать препарат",
             size_hint_x=0.4,
-            md_bg_color=(0.2, 0.7, 0.2, 1),  # зелёный
+            icon="magnify",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
             on_release=lambda x: self.find_pesticides()
         )
         button_box.add_widget(Widget())  # пустой виджет слева для отступа
+
         close_btn = MDRaisedButton(
             text="Закрыть",
+            icon="close",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
             size_hint_x=0.3,
             on_release=lambda x: self.remove_result_widget(result_layout)
         )
@@ -421,7 +532,7 @@ class CameraScreen(Screen):
         if not self.current_result:
             return
         res = self.current_result
-        THRESHOLD = 0.95
+        THRESHOLD = 0.9
         species_probs = np.array(res['species_probs'])
         disease_probs = np.array(res['disease_probs'])
 
@@ -452,12 +563,25 @@ class CameraScreen(Screen):
         """Удалить виджет результата"""
         if widget.parent:
             widget.parent.remove_widget(widget)
-        # Возвращаем исходное изображение
-        if hasattr(self, 'original_image_path') and self.original_image_path:
-            self.ids.selected_image.source = self.original_image_path
-            self.ids.selected_image.reload()
+        # # Возвращаем исходное изображение
+        # if hasattr(self, 'original_image_path') and self.original_image_path:
+        #     self.ids.selected_image.source = self.original_image_path
+        #     self.ids.selected_image.reload()
         self.enable_buttons()
            
+    def _on_clear_pressed(self):
+        if self.mask_active:
+            # Сбросить только маску, вернуть оригинал
+            if hasattr(self, 'original_image_path') and self.original_image_path:
+                self.ids.selected_image.source = self.original_image_path
+                self.ids.selected_image.reload()
+                self.mask_active = False
+                self.ids.clear_btn.icon = "close-circle"
+                print(" Маска снята")
+        else:
+            # Полный сброс изображения
+            self.reset_image()
+
     def show_results(self):
         """Показать результаты (заглушка)"""
         dialog = MDDialog(
@@ -590,7 +714,7 @@ class CameraScreen(Screen):
                 MDFlatButton(
                     text="Закрыть",
                     theme_text_color="Custom",
-                    text_color=(0, 0.7, 0, 1),  # зелёный
+                    text_color=(0, 0.25, 0, 1),  # зелёный
                     on_release=lambda x: dialog.dismiss()
                 )
             ],
@@ -603,7 +727,8 @@ class CameraScreen(Screen):
             for child in dialog_inst.children:
                 if hasattr(child, 'title') and hasattr(child, 'text_color'):
                     child.theme_text_color = "Custom"
-                    child.text_color = (0, 0.7, 0, 1)
+                    # child.text_color = (0, 0.7, 0, 1)
+                    child.text_color = 'green'
                     break
         Clock.schedule_once(lambda dt: set_title_color(dialog, dt), 0.1)
 

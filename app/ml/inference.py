@@ -84,10 +84,10 @@ disease_ru = {
     23: 'Целевая пятнистость',
     24: 'Вирус желтой курчавости листьев томата',
     25: 'Вирус мозаики томата',
-    26: 'Неизвестное заболевание'
+    26: 'Неизвестно'
 }
 
-THRESHOLD = 0.95
+THRESHOLD = 0.9
 
 class PlantModel:
     def __init__(self):
@@ -106,10 +106,10 @@ class PlantModel:
             self.seg_sess = ort.InferenceSession(str(seg_path))
             self.cls_sess = ort.InferenceSession(str(cls_path))
             self.loaded = True
-            print("✅ Модели ONNX загружены")
+            print(" Модели ONNX загружены")
             return True
         except Exception as e:
-            print(f"❌ Ошибка загрузки моделей: {e}")
+            print(f" Ошибка загрузки моделей: {e}")
             self.loaded = False
             return False
 
@@ -183,7 +183,7 @@ class PlantModel:
     def predict(self, image_path, progress_callback=None):
         """Выполнить полный пайплайн: сегментация -> классификация"""
         if not self.loaded:
-            raise RuntimeError("Модели не загружены. Вызовите load_models()")
+            raise RuntimeError("Модели не загружены. ")
 
         if progress_callback:
             progress_callback(0.1)
@@ -215,6 +215,7 @@ class PlantModel:
         species_conf = species_probs[0, species_top1]
         disease_top1 = np.argmax(disease_probs[0])
         disease_conf = disease_probs[0, disease_top1]
+        
         # ==== русскоязычные названия из локального кода 
         species_text_ru = species_ru.get(species_top1, idx_to_species[species_top1])
         # Формирование текста по пороговой логике

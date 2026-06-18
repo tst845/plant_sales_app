@@ -23,6 +23,8 @@ class DatabaseManager:
             self._insert_sample_data()
             print("✅ База данных инициализирована успешно")
             print(f"📁 Путь к БД: {self.database_path}")
+            # ===== Функция для корректной работы с регистром при поиске
+            self.connection.create_function("LOWER_UNI", 1, lambda s: s.lower() if s is not None else None)
             return True
         except Exception as e:
             print(f"❌ Ошибка инициализации БД: {e}")
@@ -242,8 +244,69 @@ class DatabaseManager:
     # Данные будут добавляться через админку или импорт
     pass
 
-    # Методы для работы с данными
+      
+    def _is_similar(self, s1, s2, threshold=2):
+        """Простая проверка на опечатку: если строки начинаются одинаково и длина отличается не более чем на threshold символов."""
+        s1 = s1.lower().strip()
+        s2 = s2.lower().strip()
+        # Если одна строка является началом другой — считаем похожими
+        if s1.startswith(s2) or s2.startswith(s1):
+            return True
+        # Если первые 3 символа совпадают и длины близки — тоже похожи
+        if s1[:3] == s2[:3] and abs(len(s1) - len(s2)) <= threshold:
+            return True
+        return False
     
+    def get_or_create_culture(self, name, cursor=None):
+        # Приводим к формату "Первая буква заглавная, остальные строчные"
+        name = name.strip().capitalize()
+        if cursor is None:
+            cursor = self.connection.cursor()
+            own_cursor = True
+        else:
+            own_cursor = False
+
+        # 1. Точное совпадение (без учёта регистра)
+        cursor.execute("SELECT id, culture_name FROM cultures WHERE LOWER_UNI(culture_name) = LOWER_UNI(?)", (name,))
+        row = cursor.fetchone()
+        if row:
+            return row['id']
+
+        # 2. Поиск похожих названий
+        cursor.execute("SELECT id, culture_name FROM cultures")
+        for row in cursor.fetchall():
+            if self._is_similar(row['culture_name'], name):
+                return row['id']
+
+        # 3. Создаём новую запись
+        cursor.execute("INSERT INTO cultures (culture_name) VALUES (?)", (name,))
+        if own_cursor:
+            self.connection.commit()
+        return cursor.lastrowid
+
+    def get_or_create_disease(self, name, cursor=None):
+        name = name.strip().capitalize()
+        if cursor is None:
+            cursor = self.connection.cursor()
+            own_cursor = True
+        else:
+            own_cursor = False
+
+        cursor.execute("SELECT id, disease_name FROM diseases WHERE LOWER_UNI(disease_name) = LOWER_UNI(?)", (name,))
+        row = cursor.fetchone()
+        if row:
+            return row['id']
+
+        cursor.execute("SELECT id, disease_name FROM diseases")
+        for row in cursor.fetchall():
+            if self._is_similar(row['disease_name'], name):
+                return row['id']
+
+        cursor.execute("INSERT INTO diseases (disease_name) VALUES (?)", (name,))
+        if own_cursor:
+            self.connection.commit()
+        return cursor.lastrowid
+
     def get_disease_class_by_index(self, class_index):
         """Получение класса заболевания по индексу нейросети"""
         cursor = self.connection.cursor()
@@ -401,8 +464,13 @@ class DatabaseManager:
 
         # Поиск по названию/описанию
         if search:
-            where.append("(p.name LIKE ? OR p.description LIKE ?)")
-            params.extend([f'%{search}%', f'%{search}%'])
+            search_lower = search.lower()
+            sql += """
+                LEFT JOIN pesticide_active_substances pas2 ON p.id = pas2.pesticide_id
+                LEFT JOIN active_substances a2 ON pas2.substance_id = a2.id
+            """
+            where.append("(LOWER_UNI(p.name) LIKE ? OR LOWER_UNI(a2.substance_name) LIKE ?)")
+            params.extend([f'%{search_lower}%', f'%{search_lower}%'])
 
         # Фильтр по типу
         if filters and filters.get('type'):

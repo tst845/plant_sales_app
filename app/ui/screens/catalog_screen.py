@@ -20,8 +20,18 @@ from kivy.properties import ObjectProperty
 from kivymd.app import MDApp
 from kivy.clock import Clock
 from kivy.properties import DictProperty
-# from kivy.animation import Animation
 from kivy.uix.widget import Widget 
+from kivy.metrics import sp
+import pandas as pd
+import os
+
+from kivy.utils import platform
+
+if platform == 'android':
+    from plyer import filechooser
+else:
+    import tkinter.filedialog as filedialog
+    import tkinter as Tk
 
 Builder.load_string('''
 <CatalogTab>:
@@ -70,15 +80,7 @@ Builder.load_string('''
                     on_release: 
                         root.ids.search_input.text = ""
                         root.search_pesticides("")
-            
-            MDIconButton:
-                icon: 'close-circle'
-                theme_icon_color: "Custom"
-                icon_color: "gray"
-                size_hint: None, None
-                size: "40dp", "40dp"
-                on_release: root.clear_search()
-            
+                       
             MDIconButton:
                 icon: 'filter'
                 theme_icon_color: "Custom"
@@ -104,46 +106,41 @@ Builder.load_string('''
                 spacing: dp(5)
                 padding: dp(10)        
         
-        # Нижняя панель с кнопкой создания
-        AnchorLayout:
+        # Нижняя панель с кнопкой создания и экспорта 
+        BoxLayout:
             size_hint_y: None
             height: "50dp"
             md_bg_color: [0.9, 0.9, 0.9, 1]   # светло-серый
-            anchor_x: "center"
-            anchor_y: "center"
 
-            MDIconButton:
-                icon: "plus"
-                theme_icon_color: "Custom"
-                icon_color: "white"
-                md_bg_color: "green"
-                size_hint: None, None
-                size: "56dp", "28dp"
-                on_release: root.create_new_pesticide()
-    
-    # # Кнопка экспорта в Excel (слева)
-    # MDFloatingActionButton:
-        # id: excel_export_btn
-    #     icon: "file-excel"
-    #     type: "standard"
-    #     md_bg_color: "#2196F3"  # Синий цвет для Excel
-    #     elevation_normal: 12
-    #     pos_hint: {"x": 0.02, "y": 0.02}
-    #     size_hint: (None, None)
-    #     size: ("56dp", "56dp")
-    #     on_release: root.export_to_excel()
-                    
-    # # Фиксированная кнопка создания поверх списка
-    # MDFloatingActionButton:
-    #     id: create_pesticide_btn
-    #     icon: "plus"
-    #     type: "standard"
-    #     md_bg_color: "green"
-    #     elevation_normal: 12
-    #     pos_hint: {"center_x": 0.5, "y": 0.02}
-    #     size_hint: (None, None)
-    #     size: ("56dp", "56dp")
-    #     on_release: root.create_new_pesticide()
+            AnchorLayout:
+                size_hint_x: 0.5
+                anchor_x: "left"
+                anchor_y: "center"
+                padding: [dp(10), 0, 0, 0]
+
+                MDIconButton:
+                    icon: "file-excel"
+                    theme_icon_color: "Custom"
+                    icon_color: "white"
+                    md_bg_color: "blue"
+                    size_hint: None, None
+                    size: "56dp", "28dp"
+                    on_release: root.confirm_export()
+
+            AnchorLayout:
+                size_hint_x: 0.5
+                anchor_x: "right"
+                anchor_y: "center"
+                padding: [0, 0, dp(10), 0]
+
+                MDIconButton:
+                    icon: "plus"
+                    theme_icon_color: "Custom"
+                    icon_color: "white"
+                    md_bg_color: "green"
+                    size_hint: None, None
+                    size: "56dp", "28dp"
+                    on_release: root.create_new_pesticide()
 
 <PesticideCard>:
     orientation: 'vertical'
@@ -234,205 +231,269 @@ Builder.load_string('''
 
 <FilterDialog>:
     orientation: "vertical"
-    spacing: "15dp"
-    padding: "20dp"
+    spacing: "12dp"
+    padding: "10dp"
     size_hint_y: None
-    height: "500dp"
-    
-    ScrollView:
-        MDBoxLayout:
-            orientation: 'vertical'
-            spacing: '10dp'
+    height: "450dp"
+
+    # Тип пестицида
+    MDBoxLayout:
+        orientation: "vertical"
+        spacing: "2dp"
+        MDLabel:
+            text: "Тип пестицида:"
+            theme_text_color: "Secondary"
             size_hint_y: None
-            height: '380dp'
-            
-            MDLabel:
-                text: "Тип пестицида:"
-                theme_text_color: "Secondary"
-                size_hint_y: None
-                height: self.texture_size[1]
-            
+            height: self.texture_size[1]
+        MDBoxLayout:
+            orientation: "horizontal"
+            spacing: "5dp"
             MDTextField:
                 id: type_filter
                 hint_text: "Выберите типы..."
                 mode: "rectangle"
+                size_hint_x: 0.85
                 on_focus: if self.focus: root.catalog_instance.open_type_menu()
-            
-            # Культуры
-            MDLabel:
-                text: "Культуры:"
-                theme_text_color: "Secondary"
-                size_hint_y: None
-                height: self.texture_size[1]
-            
+            MDIconButton:
+                icon: "close-circle"
+                size_hint: None, None
+                size: "24dp", "24dp"
+                theme_icon_color: "Custom"
+                icon_color: "gray"
+                on_release: root.catalog_instance.clear_type_filter()
+
+    # Культуры
+    MDBoxLayout:
+        orientation: "vertical"
+        spacing: "2dp"
+        MDLabel:
+            text: "Культуры:"
+            theme_text_color: "Secondary"
+            size_hint_y: None
+            height: self.texture_size[1]
+        MDBoxLayout:
+            orientation: "horizontal"
+            spacing: "5dp"
             MDTextField:
                 id: culture_filter
-                hint_text: "Выберите культуры..."
+                hint_text: "..."
                 mode: "rectangle"
+                size_hint_x: 0.85
                 on_focus: if self.focus: root.catalog_instance.open_culture_menu()
-            
-            # Заболевания
-            MDLabel:
-                text: "Заболевания:"
-                theme_text_color: "Secondary"
-                size_hint_y: None
-                height: self.texture_size[1]
-            
+            MDIconButton:
+                icon: "close-circle"
+                size_hint: None, None
+                size: "24dp", "24dp"
+                theme_icon_color: "Custom"
+                icon_color: "gray"
+                on_release: root.catalog_instance.clear_culture_filter()
+
+    # Заболевания
+    MDBoxLayout:
+        orientation: "vertical"
+        spacing: "2dp"
+        MDLabel:
+            text: "Заболевания:"
+            theme_text_color: "Secondary"
+            size_hint_y: None
+            height: self.texture_size[1]
+        MDBoxLayout:
+            orientation: "horizontal"
+            spacing: "5dp"
             MDTextField:
                 id: disease_filter
-                hint_text: "Выберите заболевания..."
+                hint_text: "..."
                 mode: "rectangle"
+                size_hint_x: 0.85
                 on_focus: if self.focus: root.catalog_instance.open_disease_menu()
-            
-            # Цена    
-            MDLabel:
-                text: "Цена от:"
-                theme_text_color: "Secondary"
-                size_hint_y: None
-                height: self.texture_size[1]
-            
-            MDBoxLayout:
-                orientation: 'horizontal'
-                spacing: '10dp'
-                size_hint_y: None
-                height: '48dp'
-                
-                MDTextField:
-                    id: min_price
-                    hint_text: "0"
-                    mode: "rectangle"
-                    input_filter: 'float'
-                
-                MDLabel:
-                    text: "до"
-                    size_hint_x: None
-                    width: '30dp'
-                
-                MDTextField:
-                    id: max_price
-                    hint_text: "10000"
-                    mode: "rectangle"
-                    input_filter: 'float'
-    
+            MDIconButton:
+                icon: "close-circle"
+                size_hint: None, None
+                size: "24dp", "24dp"
+                theme_icon_color: "Custom"
+                icon_color: "gray"
+                on_release: root.catalog_instance.clear_disease_filter()
+
+    # Цена
     MDBoxLayout:
+        orientation: "vertical"
+        spacing: "3dp"
+        MDLabel:
+            text: "Цена"
+            theme_text_color: "Secondary"
+            size_hint_y: None
+            height: self.texture_size[1]
+        MDBoxLayout:
+            orientation: 'horizontal'
+            spacing: '5dp'
+            size_hint_y: None
+            height: '48dp'
+            MDTextField:
+                id: min_price
+                hint_text: "min"
+                mode: "rectangle"
+                input_filter: 'float'
+            MDTextField:
+                id: max_price
+                hint_text: "max"
+                mode: "rectangle"
+                input_filter: 'float'
+            MDIconButton:
+                icon: "close-circle"
+                size_hint: None, None
+                size: "24dp", "24dp"
+                theme_icon_color: "Custom"
+                icon_color: "gray"
+                on_release: root.catalog_instance.clear_price_filters()
+
+    AnchorLayout:
         size_hint_y: None
         height: "48dp"
-        spacing: "10dp"
-        
-        MDFlatButton:
-            text: "Сбросить"
-            on_release: root.reset_filters()
-        
-        MDRaisedButton:
-            text: "Применить"
-            on_release: root.apply_filters()
+        anchor_x: "center"
+        anchor_y: "center"
+        MDBoxLayout:
+            orientation: "horizontal"
+            spacing: "10dp"
+            size_hint: None, None
+            size: self.minimum_size
+            MDFlatButton:
+                text: "Сбросить"
+                theme_text_color: "Custom"
+                text_color: "white"
+                md_bg_color: "green"
+                on_release: root.reset_filters()
+            MDRaisedButton:
+                text: "Применить"
+                theme_text_color: "Custom"
+                text_color: "white"
+                md_bg_color: "green"
+                on_release: root.apply_filters()
 
 <SortDialog>:
     orientation: "vertical"
-    spacing: "20dp"
-    padding: "20dp"
+    spacing: "15dp"
+    padding: "10dp"
     size_hint_y: None
-    height: "300dp"
-    
+    height: "250dp"
+
+    # Критерий сортировки
     MDLabel:
-        text: "Сортировать по:"
-        font_style: "H6"
-        halign: "center"
+        text: "Критерий сортировки:"
+        theme_text_color: "Secondary"
         size_hint_y: None
         height: self.texture_size[1]
-    
+
     MDBoxLayout:
-        orientation: 'vertical'
-        spacing: '10dp'
-        
-        MDLabel:
-            text: "Критерий сортировки:"
-            theme_text_color: "Secondary"
-            size_hint_y: None
-            height: self.texture_size[1]
-        
+        orientation: "horizontal"
+        spacing: "10dp"
+        size_hint_y: None
+        height: "40dp"
+
         MDBoxLayout:
-            orientation: 'horizontal'
-            spacing: '20dp'
-            
-            MDBoxLayout:
-                orientation: 'vertical'
-                spacing: '5dp'
-                
-                MDLabel:
-                    text: "Цена"
-                    size_hint_y: None
-                    height: self.texture_size[1]
-                
-                MDCheckbox:
-                    group: 'sort_criteria'
-                    id: sort_price
-                    on_active: root.set_sort_criteria('price')
-            
-            MDBoxLayout:
-                orientation: 'vertical'
-                spacing: '5dp'
-                
-                MDLabel:
-                    text: "Название"
-                    size_hint_y: None
-                    height: self.texture_size[1]
-                
-                MDCheckbox:
-                    group: 'sort_criteria'
-                    id: sort_name
-                    on_active: root.set_sort_criteria('name')
-        
-        MDLabel:
-            text: "Порядок сортировки:"
-            theme_text_color: "Secondary"
-            size_hint_y: None
-            height: self.texture_size[1]
-        
+            orientation: "horizontal"
+            spacing: "5dp"
+            size_hint_x: 0.5
+            MDLabel:
+                text: "Цена"
+                size_hint_y: None
+                height: "30dp"
+                valign: "middle"
+                halign: "right"
+            MDCheckbox:
+                group: 'sort_criteria'
+                id: sort_price
+                size_hint: None, None
+                size: "30dp", "30dp"
+                on_active: root.set_sort_criteria('price')
+
         MDBoxLayout:
-            orientation: 'horizontal'
-            spacing: '20dp'
-            
-            MDBoxLayout:
-                orientation: 'vertical'
-                spacing: '5dp'
-                
-                MDLabel:
-                    text: "По возрастанию"
-                    size_hint_y: None
-                    height: self.texture_size[1]
-                
-                MDCheckbox:
-                    group: 'sort_order'
-                    id: sort_asc
-                    on_active: root.set_sort_order('asc')
-            
-            MDBoxLayout:
-                orientation: 'vertical'
-                spacing: '5dp'
-                
-                MDLabel:
-                    text: "По убыванию"
-                    size_hint_y: None
-                    height: self.texture_size[1]
-                
-                MDCheckbox:
-                    group: 'sort_order'
-                    id: sort_desc
-                    on_active: root.set_sort_order('desc')
-    
+            orientation: "horizontal"
+            spacing: "5dp"
+            size_hint_x: 0.5
+            MDLabel:
+                text: "Название"
+                size_hint_y: None
+                height: "30dp"
+                valign: "middle"
+                halign: "right"
+            MDCheckbox:
+                group: 'sort_criteria'
+                id: sort_name
+                size_hint: None, None
+                size: "30dp", "30dp"
+                on_active: root.set_sort_criteria('name')
+
+    MDLabel:
+        text: "Порядок сортировки:"
+        theme_text_color: "Secondary"
+        size_hint_y: None
+        height: self.texture_size[1]
+
     MDBoxLayout:
+        orientation: "horizontal"
+        spacing: "20dp"
+        size_hint_y: None
+        height: "40dp"
+
+        MDBoxLayout:
+            orientation: "horizontal"
+            spacing: "5dp"
+            size_hint_x: 0.5
+            MDLabel:
+                text: "Возрастание"
+                size_hint_y: None
+                height: "30dp"
+                valign: "middle"
+                halign: "right"
+            MDCheckbox:
+                group: 'sort_order'
+                id: sort_asc
+                size_hint: None, None
+                size: "30dp", "30dp"
+                on_active: root.set_sort_order('asc')
+
+        MDBoxLayout:
+            orientation: "horizontal"
+            spacing: "5dp"
+            size_hint_x: 0.5
+            MDLabel:
+                text: "Убывание"
+                size_hint_y: None
+                height: "30dp"
+                valign: "middle"
+                halign: "right"
+            MDCheckbox:
+                group: 'sort_order'
+                id: sort_desc
+                size_hint: None, None
+                size: "30dp", "30dp"
+                on_active: root.set_sort_order('desc')
+
+    # Кнопки по центру
+    AnchorLayout:
         size_hint_y: None
         height: "48dp"
-        spacing: "10dp"
-        
-        MDFlatButton:
-            text: "Отмена"
-            on_release: root.cancel_sort()
-        
-        MDRaisedButton:
-            text: "Применить"
-            on_release: root.apply_sort()
+        anchor_x: "center"
+        anchor_y: "center"
+        MDBoxLayout:
+            orientation: "horizontal"
+            spacing: "10dp"
+            size_hint: None, None
+            size: self.minimum_size
+
+            MDFlatButton:
+                text: " Отмена"
+                theme_text_color: "Custom"
+                text_color: "white"
+                md_bg_color: "green"
+                on_release: root.cancel_sort()
+
+            MDRaisedButton:
+                text: "Применить"
+                theme_text_color: "Custom"
+                text_color: "white"
+                md_bg_color: "green"
+                on_release: root.apply_sort()
 
 <EditPesticideDialog>:
     orientation: "vertical"
@@ -444,13 +505,14 @@ Builder.load_string('''
     ScrollView:
         MDBoxLayout:
             orientation: "vertical"
-            spacing: "10dp"
+            spacing: "5dp"
             size_hint_y: None
             height: self.minimum_height
 
             MDLabel:
                 text: "Название:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)      
                 size_hint_y: None
                 height: self.texture_size[1]
 
@@ -460,7 +522,8 @@ Builder.load_string('''
 
             MDLabel:
                 text: "Действующие вещества:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
                 size_hint_y: None
                 height: self.texture_size[1]
 
@@ -470,10 +533,12 @@ Builder.load_string('''
                 multiline: True
                 height: dp(60)
                 hint_text: "Пример: ДВ1 1,1 г/л, ДВ2 2,2 г/л"
+                text_color: (0, 0, 0, 1)
 
             MDLabel:
                 text: "Описание:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
                 size_hint_y: None
                 height: self.texture_size[1]
 
@@ -482,30 +547,36 @@ Builder.load_string('''
                 mode: "rectangle"
                 multiline: True
                 height: dp(90)
+                text_color: (0, 0, 0, 1)
 
             MDLabel:
                 text: "Норма расхода:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
                 size_hint_y: None
                 height: self.texture_size[1]
 
             MDTextField:
                 id: edit_application_rate
                 mode: "rectangle"
+                text_color: (0, 0, 0, 1)
 
             MDLabel:
                 text: "Фасовка:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
                 size_hint_y: None
                 height: self.texture_size[1]
 
             MDTextField:
                 id: edit_packaging
                 mode: "rectangle"
+                text_color: (0, 0, 0, 1)
 
             MDLabel:
                 text: "Цена:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
                 size_hint_y: None
                 height: self.texture_size[1]
 
@@ -513,32 +584,38 @@ Builder.load_string('''
                 id: edit_price
                 mode: "rectangle"
                 input_filter: "float"
+                text_color: (0, 0, 0, 1)
 
             MDLabel:
                 text: "Производитель:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
                 size_hint_y: None
                 height: self.texture_size[1]
 
             MDTextField:
                 id: edit_manufacturer
                 mode: "rectangle"
+                text_color: (0, 0, 0, 1)
 
             MDLabel:
                 text: "Тип пестицида:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
                 size_hint_y: None
                 height: self.texture_size[1]
 
             MDTextField:
                 id: edit_type
                 mode: "rectangle"
-                hint_text: "Выберите тип..."
+                hint_text: "..."
                 on_focus: if self.focus: root.open_type_menu()
+                text_color: (0, 0, 0, 1)
 
             MDLabel:
                 text: "Болезни:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
                 size_hint_y: None
                 height: self.texture_size[1]
 
@@ -547,10 +624,12 @@ Builder.load_string('''
                 mode: "rectangle"
                 multiline: True
                 height: dp(60)
+                text_color: (0, 0, 0, 1)
 
             MDLabel:
                 text: "Культуры:"
-                theme_text_color: "Secondary"
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
                 size_hint_y: None
                 height: self.texture_size[1]
 
@@ -559,19 +638,13 @@ Builder.load_string('''
                 mode: "rectangle"
                 multiline: True
                 height: dp(60)
+                text_color: (0, 0, 0, 1)
 
     MDBoxLayout:
         size_hint_y: None
         height: "48dp"
         spacing: "10dp"
 
-        MDFlatButton:
-            text: "Отмена"
-            on_release: root.cancel_edit()
-
-        MDRaisedButton:
-            text: "Принять"
-            on_release: root.save_pesticide()
         MDRaisedButton:
             text: "Удалить"
             theme_text_color: "Custom"
@@ -580,6 +653,21 @@ Builder.load_string('''
             on_release: root.delete_pesticide()
             disabled: root.is_new
             opacity: 0 if root.is_new else 1
+
+        MDRaisedButton:
+            text: "Принять"
+            theme_text_color: "Custom"
+            text_color: "white"
+            md_bg_color: "green"
+            on_release: root.save_pesticide()
+
+                    
+        MDFlatButton:
+            text: "Отмена"
+            theme_text_color: "Custom"
+            text_color: "white"
+            md_bg_color: "green"
+            on_release: root.cancel_edit()
 ''')
 
 
@@ -601,8 +689,26 @@ class PesticideCard(MDCard):
     def __init__(self, **kwargs):
         print("Создаётся PesticideCard")
         super().__init__(**kwargs)
+        self._touch_down_pos = None
         # self.block_scroll = False
         # print("Атрибуты:", dir(self))
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self._touch_down_pos = (touch.x, touch.y)
+        return super().on_touch_down(touch)
+
+    def on_touch_up(self, touch):
+        if self._touch_down_pos:
+            dx = touch.x - self._touch_down_pos[0]
+            dy = touch.y - self._touch_down_pos[1]
+            if (dx*dx + dy*dy) < 400:  # порог ~20 пикселей
+                if self.catalog_instance:
+                    self.catalog_instance.show_pesticide_details(self.full_data)
+                    self._touch_down_pos = None
+                    return True
+        self._touch_down_pos = None
+        return super().on_touch_up(touch)
 
     def apply_data(self, data_dict):
         """Обновить карточку из словаря данных"""
@@ -616,12 +722,7 @@ class PesticideCard(MDCard):
         self.catalog_instance = data_dict.get('catalog_instance')
         # сохраним id и другие данные для обработчика on_release
         self.pesticide_data = data_dict
-    
-    def on_touch_up(self, touch):
-        if self.collide_point(*touch.pos) and self.catalog_instance:
-            self.catalog_instance.show_pesticide_details(self.full_data)
-            return True
-        return super().on_touch_up(touch)
+
     
     def on_pesticide_name(self, instance, value):
         # Если название пустое, показываем "Без названия"
@@ -905,6 +1006,51 @@ class CatalogTab(MDBottomNavigationItem):
         except ImportError as e:
             print(f"⚠️ Библиотеки для экспорта не установлены: {e}")
     
+    def _open_file_dialog(self, title, filters, on_success):
+        if platform == 'android':
+            android_filters = [f[1] for f in filters]
+            filechooser.open_file(
+                title=title,
+                filters=android_filters,
+                on_selection=lambda sel: self._on_file_selected(sel, on_success)
+            )
+        else:
+            root = Tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            file_path = filedialog.askopenfilename(title=title, filetypes=filters)
+            root.destroy()
+            if file_path:
+                on_success(file_path)
+
+    def _save_file_dialog(self, title, filters, default_name, on_success):
+        if platform == 'android':
+            android_filters = [f[1] for f in filters]
+            filechooser.save_file(
+                title=title,
+                filters=android_filters,
+                filename=default_name,
+                on_selection=lambda sel: self._on_file_selected(sel, on_success)
+            )
+        else:
+            root = Tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            file_path = filedialog.asksaveasfilename(
+                title=title,
+                defaultextension=".xlsx",
+                filetypes=filters,
+                initialfile=default_name
+            )
+            root.destroy()
+            if file_path:
+                on_success(file_path)
+
+    def _on_file_selected(self, selection, callback):
+        if selection and len(selection) > 0:
+            callback(selection[0])
+
+
     def refresh_data(self):
         self.current_offset = 0
         self.data = []
@@ -957,12 +1103,19 @@ class CatalogTab(MDBottomNavigationItem):
                 return
 
             for item in new_items:
+                app_rate = item.get('application_rate', '')
+                if app_rate:
+                    pack = item.get('packaging', '').lower()
+                    if 'л' in pack:
+                        app_rate += " л/га"
+                    elif 'кг' in pack:
+                        app_rate += " кг/га"
                 card_dict = {
                     'pesticide_name': item.get('name', ''),
                     'pesticide_description': item.get('description', ''),
                     'pesticide_price': self._format_price(item.get('price', 0)),
                     'pesticide_packaging': item.get('packaging', ''),
-                    'pesticide_application_rate': item.get('application_rate', ''),
+                    'pesticide_application_rate': app_rate,
                     'pesticide_substance': self._format_substances(item.get('substances', '')),
                     'pesticide_type': item.get('pesticide_type', 'Не указан'),  
                     'substances': item.get('substances', ''),
@@ -1014,6 +1167,30 @@ class CatalogTab(MDBottomNavigationItem):
 
         Clock.schedule_once(lambda dt: self._restore_scroll_position(viewport_height), 0)    
     
+    def clear_type_filter(self):
+        self.selected_types = []
+        if self.filter_dialog:
+            self.filter_dialog.content_cls.ids.type_filter.text = ""
+        # self.apply_filters()
+
+    def clear_culture_filter(self):
+        self.selected_cultures = []
+        if self.filter_dialog:
+            self.filter_dialog.content_cls.ids.culture_filter.text = ""
+        # self.apply_filters()
+
+    def clear_disease_filter(self):
+        self.selected_diseases = []
+        if self.filter_dialog:
+            self.filter_dialog.content_cls.ids.disease_filter.text = ""
+        # self.apply_filters()
+
+    def clear_price_filters(self):
+        if self.filter_dialog:
+            content = self.filter_dialog.content_cls
+            content.ids.min_price.text = ""
+            content.ids.max_price.text = ""
+        # self.apply_filters()
 
     def _format_price(self, price):
         if isinstance(price, (int, float)):
@@ -1061,11 +1238,10 @@ class CatalogTab(MDBottomNavigationItem):
 
     def _format_substances(self, substances_str):
         if not substances_str or substances_str == 'None':
-            return "Действующие вещества не указаны"
+            return "ДВ не указаны"
         parts = substances_str.split('||')
         formatted = [part.strip() for part in parts if part.strip()]
-        # print('def _format_substances formatted: ', formatted)
-        return ', '.join(formatted) if formatted else "Действующие вещества не указаны"
+        return ', '.join(formatted) if formatted else "ДВ не указаны"
 
     def _restore_scroll_position(self, viewport_height):
         rv = self.ids.pesticide_recycle
@@ -1277,8 +1453,8 @@ class CatalogTab(MDBottomNavigationItem):
                 cancel_callback=self.cancel_sort,
                 current_sort=self.sort_settings
             ),
-            size_hint=(0.8, None),
-            height="350dp"
+            size_hint=(0.9, None),
+            height="400dp"
         )
         self.sort_dialog.open()
     
@@ -1366,6 +1542,7 @@ class CatalogTab(MDBottomNavigationItem):
             ver_growth="down"
         )
         self.culture_menu.open()
+
 
     def _update_culture_menu_items(self, cultures):
         """Обновить элементы меню культур"""
@@ -1512,39 +1689,6 @@ class CatalogTab(MDBottomNavigationItem):
             print(f"❌ Ошибка создания препарата: {e}")
             self._show_error_message(f"Ошибка создания: {e}")
 
-    # def open_disease_menu(self):
-    #     """Открыть меню выбора заболеваний ПОД полем"""
-    #     if not self.filter_dialog:
-    #         return
-    #     if self.disease_menu and self.disease_menu.parent:
-    #         self.disease_menu.dismiss()
-    #         self.disease_menu = None
-    #         return
-        
-    #     # Список доступных заболеваний (можно загружать из БД)
-    #     diseases = [
-    #         "Мучнистая роса", "Парша", "Ржавчина", "Фитофтороз", "Антракноз",
-    #         "Бактериальная пятнистость", "Вирус мозаики", "Серая гниль", "Черная пятнистость"
-    #     ]
-        
-    #     menu_items = [
-    #         {
-    #             "text": disease,
-    #             "viewclass": "OneLineListItem",
-    #             "height": dp(48),
-    #             "on_release": lambda x=disease: self.select_disease(x),
-    #         } for disease in diseases
-    #     ]
-        
-    #     self.disease_menu = MDDropdownMenu(
-    #         caller=self.filter_dialog.content_cls.ids.disease_filter,
-    #         items=menu_items,
-    #         width=dp(200),
-    #         max_height=dp(150),
-    #         position="auto",
-    #         ver_growth="down"
-    #     )
-    #     self.disease_menu.open()
     def open_disease_menu(self):
         if not self.filter_dialog:
             return
@@ -1727,13 +1871,34 @@ class CatalogTab(MDBottomNavigationItem):
             cultures_str = ", ".join(cultures_list) if cultures_list else "Не указаны"
             diseases_str = ", ".join(diseases_list) if diseases_list else "Не указаны"
 
+            
+            rate_str = pesticide_data.get('application_rate', '')
+            if rate_str:
+                pack = pesticide_data.get('packaging', '').lower()
+                if 'л' in pack:
+                    rate_str += " л/га"
+                elif 'кг' in pack:
+                    rate_str += " кг/га"
+                else:  rate_str+='Не указано'
             # Действующие вещества (как раньше)
             raw_substances = pesticide_data.get('substances', '')
-            substances_text = self._format_substances(raw_substances)
-            if not substances_text:
-                substances_text = "Действующие вещества не указаны"
+            if raw_substances and raw_substances != 'None':
+                parts = raw_substances.split('||')
+                formatted_parts = []
+                for part in parts:
+                    part = part.strip()
+                    if part:
+                        formatted_parts.append(part)
+                if formatted_parts:
+                    # Первая строка с веществом остаётся как есть
+                    substances_text ='\n    '+ formatted_parts[0]
+                    # Добавляем остальные вещества с отступом
+                    for part in formatted_parts[1:]:
+                        substances_text += ",\n    " + part   # 4 пробела для выравнивания
+                else:
+                    substances_text = "Действующие вещества не указаны"
             else:
-                substances_text = substances_text.replace('\n', ', ')
+                substances_text = "Действующие вещества не указаны"
 
             pesticide_type = pesticide_data.get('pesticide_type', pesticide_data.get('type', 'Не указано'))
             price = pesticide_data.get('price', '')
@@ -1742,53 +1907,25 @@ class CatalogTab(MDBottomNavigationItem):
             else:
                 price_display = str(price) if price else 'Не указана'
 
-            # detail_text = f"""[color=000000]
-    # [b]Действующие вещества:[/b]
-    # {substances_text}
 
+            detail_text = (
+    f"[color=006400]Действующие вещества:[/color]    {substances_text}\n\n"
+    f"[color=006400]Описание:[/color]\n{pesticide_data.get('description', 'Не указано')}\n\n"
+    f"[color=006400]Норма расхода:[/color] {rate_str}\n"
+    f"[color=006400]Фасовка:[/color] {pesticide_data.get('packaging', 'Не указано')}\n"
+    f"[color=006400]Цена:[/color] {price_display}\n"
+    f"[color=006400]Производитель:[/color] {pesticide_data.get('manufacturer', 'Не указано')}\n\n"
+    f"[color=006400]Тип пестицида:[/color] {pesticide_type}\n\n"
+    f"[color=006400]Культуры:[/color] {cultures_str}\n\n"
+    f"[color=006400]Болезни:[/color] {diseases_str}"
+)
 
-    # [b]Описание:[/b]
-    # {pesticide_data.get('description', 'Не указано')}
-
-    # [b]Норма расхода:[/b] {pesticide_data.get('application_rate', 'Не указано')}
-    # [b]Фасовка:[/b] {pesticide_data.get('packaging', 'Не указано')}
-    # [b]Цена:[/b] {price_display}
-    # [b]Производитель:[/b] {pesticide_data.get('manufacturer', 'Не указано')}
-
-    # [b]Тип пестицида:[/b] {pesticide_type}
-
-    # [b]Культуры:[/b]
-    # {cultures_str}
-
-    # [b]Болезни:[/b]
-    # {diseases_str}
-    # [/color]"""
-            detail_text = f"""
-    Действующие вещества:
-    {substances_text}
-
-    Описание:
-    {pesticide_data.get('description', 'Не указано')}
-
-    Норма расхода: {pesticide_data.get('application_rate', 'Не указано')}
-    Фасовка: {pesticide_data.get('packaging', 'Не указано')}
-    Цена: {price_display}
-    Производитель: {pesticide_data.get('manufacturer', 'Не указано')}
-
-    Тип пестицида: {pesticide_type}
-
-    Культуры:
-    {cultures_str}
-
-    Болезни:
-    {diseases_str}
-    """
-
-            # Создаём метку с явным размером шрифта (например, 14sp)
-            from kivy.metrics import sp
             label = MDLabel(
                 text=detail_text,
-                font_size=sp(14),
+                markup=True,  
+                font_style="Subtitle1", # H6 Subtitle1
+                theme_text_color="Custom", 
+                text_color=(0, 0, 0, 1), 
                 halign='left',
                 valign='top',
                 size_hint_y=None,
@@ -1797,17 +1934,9 @@ class CatalogTab(MDBottomNavigationItem):
             # label.font_name = 'Roboto'
             label.bind(texture_size=label.setter('size'))
             
-            # # Создаём прокручиваемую метку
-            # label = MDLabel(
-            #     text=detail_text,          # detail_text уже содержит BB-разметку
-            #     markup=True, 
-            #     size_hint_y=None,
-            #     halign='left',
-            #     valign='top',
-            #     padding=(10, 10)
-            # )
-            # label.bind(texture_size=label.setter('size'))
-            scroll = ScrollView(size_hint=(1, 1))
+            scroll = ScrollView(
+                # size_hint=(1, 1)
+                )
             scroll.add_widget(label)
 
             # Контейнер с фиксированной высотой, чтобы диалог не схлопнулся
@@ -1877,30 +2006,7 @@ class CatalogTab(MDBottomNavigationItem):
             # Открываем редактор ДВ
             self.app.show_substance_editor(self.current_editing_pesticide['id'])
 
-    # def _save_pesticide_edit(self):
-    #     """Сохранение изменений препарата (вызывается из диалога)"""
-    #     try:
-    #         dialog = self.edit_dialog.content_cls  # сам EditPesticideDialog
-    #         updated_pesticide = {
-    #             'name': dialog.ids.edit_name.text,
-    #             'description': dialog.ids.edit_description.text,
-    #             'application_rate': dialog.ids.edit_application_rate.text,
-    #             'packaging': dialog.ids.edit_packaging.text,
-    #             'price': float(dialog.ids.edit_price.text) if dialog.ids.edit_price.text else 0.0,
-    #             'manufacturer': dialog.ids.edit_manufacturer.text,
-    #             'pesticide_type': dialog.ids.edit_type.text
-    #         }
-    #         # Если это существующий препарат, добавляем id
-    #         if self.current_editing_pesticide and 'id' in self.current_editing_pesticide:
-    #             updated_pesticide['id'] = self.current_editing_pesticide['id']
-
-    #         print(f"💾 Сохранены изменения препарата: {updated_pesticide['name']}")
-    #         # Здесь должен быть реальный UPDATE в БД
-    #         self.edit_dialog.dismiss()
-    #         self.refresh_data()
-    #     except Exception as e:
-    #         print(f"❌ Ошибка сохранения препарата: {e}")
-
+  
     def save_pesticide_changes(self, updated_data):
         try:
             app = MDApp.get_running_app()
@@ -2037,13 +2143,6 @@ class CatalogTab(MDBottomNavigationItem):
              
         self.current_editing_pesticide = None
     
-    # def add_to_order(self, pesticide):
-    #     """Добавить препарат в заказ"""
-    #     print(f"🛒 Добавлен в заказ: {pesticide['name']}")
-    #     if self.detail_dialog:
-    #         self.detail_dialog.dismiss()
-        
-    #     self.show_snackbar(f"Препарат '{pesticide['name']}' добавлен в заказ")
        
     def select_pesticide_type(self, pesticide_type):
         """Выбрать тип пестицида в фильтрах"""
@@ -2076,13 +2175,6 @@ class CatalogTab(MDBottomNavigationItem):
                 'min_price': content.ids.min_price.text,
                 'max_price': content.ids.max_price.text
             }
-            # self.filters = {
-            #     'type': self.selected_types.copy(),
-            #     'cultures': self.selected_cultures.copy(),
-            #     'diseases': self.selected_diseases.copy(),
-            #     'min_price': content.ids.min_price.text,
-            #     'max_price': content.ids.max_price.text
-            # }
             print(f"✅ Применены фильтры: {self.filters}")
             self.refresh_data()
             self.filter_dialog.dismiss()
@@ -2203,202 +2295,236 @@ class CatalogTab(MDBottomNavigationItem):
         except Exception as e:
             print(f"❌ {message}")
 
-    def export_to_excel(self):
-        """Экспорт отфильтрованного списка препаратов в Excel"""
+
+    def confirm_export(self):
+        """Показать диалог подтверждения экспорта с текущими параметрами и количеством"""
+        # Предварительно определим количество препаратов (без пагинации)
         try:
-            print("📊 Начинаю экспорт в Excel...")
-            
-            # Импортируем необходимые библиотеки
-            import pandas as pd
-            import os
-            from datetime import datetime
-            from kivy import platform
-            
-            # Определяем путь для сохранения файла
-            if platform == 'android':
-                # На Android сохраняем во внешнее хранилище
-                from android.storage import primary_external_storage_path
-                base_path = primary_external_storage_path()
-                export_dir = os.path.join(base_path, "Documents", "PlantProtection")
-            else:
-                # На компьютере сохраняем в папку проекта
-                export_dir = os.path.join(os.getcwd(), "exports")
-            
-            # Создаем директорию если ее нет
-            os.makedirs(export_dir, exist_ok=True)
-            
-            # Генерируем имя файла с датой и временем
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"pesticides_export_{timestamp}.xlsx"
-            filepath = os.path.join(export_dir, filename)
-            
-            # Получаем отфильтрованные препараты
-            filtered_pesticides = []
-            
-            # Получаем данные из БД или тестовые данные
             app = MDApp.get_running_app()
-            if hasattr(app.db, 'get_pesticides_with_substances'):
-                try:
-                    pesticides = app.db.get_pesticides_with_substances()
-                    # Применяем фильтры
-                    # filtered_pesticides = self._apply_filters(pesticides, 
-                    #                                          self.ids.search_input.text, 
-                    #                                          self.filters)
-                except Exception as e:
-                    print(f"⚠️ Ошибка получения данных из БД: {e}")
-                    filtered_pesticides = self._get_filtered_test_pesticides()
-            else:
-                filtered_pesticides = self._get_filtered_test_pesticides()
-            
-            if not filtered_pesticides:
+            pesticides = app.db.get_pesticides_paginated(
+                offset=0,
+                limit=100000,
+                search=self.search_query,
+                filters=self.filters,
+                sort_by=self.sort_settings['criteria'],
+                sort_order=self.sort_settings['order']
+            )
+            total_count = len(pesticides) if pesticides else 0
+        except Exception as e:
+            print(f"Ошибка при подсчёте: {e}")
+            total_count = 0
+
+        # Формируем список активных параметров
+        params = []
+        if self.search_query:
+            params.append(f"Поиск: '{self.search_query}'")
+        if self.sort_settings['criteria'] == 'price':
+            order = "возрастание" if self.sort_settings['order'] == 'asc' else "убывание"
+            params.append(f"Сортировка: по цене ({order})")
+        else:
+            order = "возрастание" if self.sort_settings['order'] == 'asc' else "убывание"
+            params.append(f"Сортировка: по названию ({order})")
+        if self.filters:
+            if 'type' in self.filters and self.filters['type']:
+                params.append(f"Тип: {', '.join(self.filters['type'])}")
+            if 'cultures' in self.filters and self.filters['cultures']:
+                params.append(f"Культуры: {', '.join(self.filters['cultures'])}")
+            if 'diseases' in self.filters and self.filters['diseases']:
+                params.append(f"Болезни: {', '.join(self.filters['diseases'])}")
+            if 'min_price' in self.filters and self.filters['min_price']:
+                params.append(f"Цена от: {self.filters['min_price']}")
+            if 'max_price' in self.filters and self.filters['max_price']:
+                params.append(f"Цена до: {self.filters['max_price']}")
+
+        param_text = "\n".join(params) if params else "Без параметров (весь каталог)"
+
+        import os
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"catalog_export_{timestamp}.xlsx"
+
+        # Создаём контент диалога с чёрным текстом
+        content = MDBoxLayout(orientation='vertical', spacing='10dp', padding='10dp', size_hint_y=None)
+        content.height = dp(200)
+
+        label = MDLabel(
+            text=(
+                f"Будет экспортировано препаратов: [color=ff0000]{total_count}[/color]\n\n"
+                f"Активные параметры:\n{param_text}\n\n"
+                f"Имя файла: {filename}"
+            ),
+            markup=True,
+            theme_text_color="Custom",
+            text_color=(0, 0, 0, 1),
+            halign='left',
+            valign='top',
+            size_hint_y=None,
+        )
+        label.bind(texture_size=label.setter('size'))
+        content.add_widget(label)
+
+        self.export_confirm_dialog = MDDialog(
+            title="Экспорт каталога",
+            type="custom",
+            content_cls=content,
+            size_hint=(0.9, 0.5),
+            buttons=[
+                MDFlatButton(
+                    text="Отмена",
+                    theme_text_color="Custom",
+                    text_color="white",
+                    md_bg_color="green",
+                    on_release=lambda x: self.export_confirm_dialog.dismiss()
+                ),
+                MDRaisedButton(
+                    text="Сохранить",
+                    theme_text_color="Custom",
+                    text_color="white",
+                    md_bg_color="green",
+                    on_release=lambda x: self._start_export()
+                ),
+            ],
+        )
+        self.export_confirm_dialog.open()
+
+    def _start_export(self):
+        """Закрыть диалог подтверждения и запустить экспорт, если есть данные"""
+        # Проверяем количество
+        try:
+            app = MDApp.get_running_app()
+            pesticides = app.db.get_pesticides_paginated(
+                offset=0,
+                limit=100000,
+                search=self.search_query,
+                filters=self.filters,
+                sort_by=self.sort_settings['criteria'],
+                sort_order=self.sort_settings['order']
+            )
+            if not pesticides:
+                # Показываем сообщение поверх диалога, но не закрываем его
+                if self.export_confirm_dialog:
+                    # Создаём диалог с сообщением и крестиком
+                    self.empty_data_dialog = MDDialog(
+                        title="Экспорт",
+                        text="Нет данных для сохранения с текущими параметрами.",
+                        buttons=[
+                            MDIconButton(
+                                icon="close",
+                                theme_icon_color="Custom",
+                                icon_color="red",
+                                on_release=lambda x: self.empty_data_dialog.dismiss()
+                            )
+                        ],
+                    )
+                    self.empty_data_dialog.open()
+                return
+        except Exception as e:
+            print(f"Ошибка при проверке данных: {e}")
+            self._show_error_message("Ошибка при проверке данных")
+            return
+
+        if self.export_confirm_dialog:
+            self.export_confirm_dialog.dismiss()
+        self.export_to_excel()
+
+    def export_to_excel(self):
+        """Экспорт каталога в Excel с учётом текущих фильтров, поиска и сортировки"""
+        try:
+            app = MDApp.get_running_app()
+            pesticides = app.db.get_pesticides_paginated(
+                offset=0,
+                limit=100000,
+                search=self.search_query,
+                filters=self.filters,
+                sort_by=self.sort_settings['criteria'],
+                sort_order=self.sort_settings['order']
+            )
+            if not pesticides:
                 self._show_error_message("Нет данных для экспорта")
                 return
-            
-            # Подготавливаем данные для экспорта
-            excel_data = []
-            
-            for pesticide in filtered_pesticides:
-                # Получаем все действующие вещества для этого препарата
-                substances_list = []
-                
-                if hasattr(pesticide, 'get') and 'substances' in pesticide:
-                    substances_str = str(pesticide.get('substances', ''))
-                    if substances_str and substances_str != 'None':
-                        substances_parts = substances_str.split('||')
-                        for substance in substances_parts:
-                            if substance.strip():
-                                substances_list.append(substance.strip())
-                
-                # Формируем строку ДВ через точку с запятой
-                substances_display = '; '.join(substances_list) if substances_list else 'Не указаны'
-                
-                # Форматируем цену
-                price = pesticide.get('price', '')
-                if isinstance(price, (int, float)):
-                    price_display = f"{price} руб."
-                else:
-                    price_display = str(price) if price else 'Не указана'
-                
-                # Создаем строку для Excel
-                row = {
-                    'ID': pesticide.get('id', ''),
-                    'Название': pesticide.get('name', ''),
-                    'Действующие вещества': substances_display,
-                    'Описание': pesticide.get('description', ''),
-                    'Норма расхода': pesticide.get('application_rate', ''),
-                    'Фасовка': pesticide.get('packaging', ''),
-                    'Цена': price_display,
-                    'Производитель': pesticide.get('manufacturer', ''),
-                    'Тип': pesticide.get('type', pesticide.get('pesticide_type', '')),
-                    'Культуры': pesticide.get('cultures', ''),
-                    'Заболевания': pesticide.get('diseases', ''),
-                    'Единица измерения': pesticide.get('unit', '')
-                }
-                excel_data.append(row)
-            
-            # Создаем DataFrame
-            df = pd.DataFrame(excel_data)
-            
-            # Экспортируем в Excel
-            with pd.ExcelWriter(filepath, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='Препараты', index=False)
-                
-                # Настраиваем ширину колонок
-                worksheet = writer.sheets['Препараты']
-                for column in worksheet.columns:
-                    max_length = 0
-                    column_letter = column[0].column_letter
-                    for cell in column:
-                        try:
-                            if len(str(cell.value)) > max_length:
-                                max_length = len(str(cell.value))
-                        except:
-                            pass
-                    adjusted_width = min(max_length + 2, 50)  # Максимальная ширина 50 символов
-                    worksheet.column_dimensions[column_letter].width = adjusted_width
-            
-            # Сообщение об успехе
-            message = f"✅ Экспортировано {len(excel_data)} препаратов\nФайл: {filename}"
-            
-            # Показываем диалог с информацией
-            from kivymd.uix.dialog import MDDialog
-            from kivymd.uix.button import MDFlatButton
-            
-            self.export_dialog = MDDialog(
-                title="Экспорт завершен",
-                text=message,
-                buttons=[
-                    MDFlatButton(
-                        text="OK",
-                        on_release=lambda x: self.export_dialog.dismiss()
-                    )
-                ]
+
+            cursor = app.db.connection.cursor()
+            data_rows = []
+
+            for pest in pesticides:
+                pid = pest['id']
+                cursor.execute('''
+                    SELECT a.substance_name, pas.concentration
+                    FROM pesticide_active_substances pas
+                    JOIN active_substances a ON pas.substance_id = a.id
+                    WHERE pas.pesticide_id = ?
+                ''', (pid,))
+                substances_list = [f"{row['substance_name']} {row['concentration']}" for row in cursor.fetchall()]
+                substances_str = "; ".join(substances_list) if substances_list else ""
+
+                cursor.execute('''
+                    SELECT c.culture_name
+                    FROM pesticide_cultures pc
+                    JOIN cultures c ON pc.culture_id = c.id
+                    WHERE pc.pesticide_id = ?
+                ''', (pid,))
+                cultures_list = [row['culture_name'] for row in cursor.fetchall()]
+                cultures_str = ", ".join(cultures_list) if cultures_list else ""
+
+                cursor.execute('''
+                    SELECT d.disease_name
+                    FROM pesticide_diseases pd
+                    JOIN diseases d ON pd.disease_id = d.id
+                    WHERE pd.pesticide_id = ?
+                ''', (pid,))
+                diseases_list = [row['disease_name'] for row in cursor.fetchall()]
+                diseases_str = ", ".join(diseases_list) if diseases_list else ""
+
+                data_rows.append({
+                    'Название': pest['name'],
+                    'Тип': pest.get('pesticide_type', ''),
+                    'Действующие вещества': substances_str,
+                    'Описание': pest.get('description') or '',
+                    'Норма расхода': pest.get('application_rate') or '',
+                    'Фасовка': pest.get('packaging') or '',
+                    'Цена, руб.': pest['price'],
+                    'Производитель': pest.get('manufacturer') or '',
+                    'Культуры': cultures_str,
+                    'Болезни': diseases_str,
+                })
+
+            df = pd.DataFrame(data_rows)
+
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_name = f"catalog_export_{timestamp}.xlsx"
+
+            def on_file_saved(file_path):
+                try:
+                    with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+                        df.to_excel(writer, sheet_name='Препараты', index=False)
+                        worksheet = writer.sheets['Препараты']
+                        for column in worksheet.columns:
+                            max_length = 0
+                            col_letter = column[0].column_letter
+                            for cell in column:
+                                try:
+                                    if len(str(cell.value)) > max_length:
+                                        max_length = len(str(cell.value))
+                                except:
+                                    pass
+                            adjusted_width = min(max_length + 2, 50)
+                            worksheet.column_dimensions[col_letter].width = adjusted_width
+                    self._show_success_message(f"Каталог сохранён: {os.path.basename(file_path)}")
+                except Exception as e:
+                    self._show_error_message(f"Ошибка сохранения: {e}")
+
+            self._save_file_dialog(
+                title="Сохранить каталог",
+                filters=[("Excel files", "*.xlsx")],
+                default_name=default_name,
+                on_success=on_file_saved
             )
-            self.export_dialog.open()
-            
-            print(f"✅ Экспорт завершен: {filepath}")
-            
-        except ImportError as e:
-            self._show_error_message(f"Библиотеки не установлены: {e}\nУстановите: pip install pandas openpyxl")
+
         except Exception as e:
-            print(f"❌ Ошибка экспорта в Excel: {e}")
             self._show_error_message(f"Ошибка экспорта: {str(e)[:100]}")
     
-    def _get_filtered_test_pesticides(self):
-        """Получить отфильтрованные тестовые препараты"""
-        # Применяем фильтры к тестовым данным
-        filtered = self.test_pesticides
-        
-        # Поиск по названию, описанию и веществу
-        search_query = self.ids.search_input.text
-        if search_query:
-            search_query = search_query.lower()
-            filtered = [p for p in filtered
-                       if search_query in p.get('name', '').lower()
-                       or search_query in p.get('description', '').lower()
-                       or search_query in str(p.get('substance', '')).lower()]
-        
-        # Фильтр по типу
-        if self.filters and self.filters.get('type'):
-            filtered = [p for p in filtered if p.get('type', '') in self.filters['type']]
-        
-        # Фильтр по культурам
-        if self.filters and self.filters.get('cultures'):
-            selected_cultures = self.filters['cultures']
-            filtered = [p for p in filtered if any(
-                culture in str(p.get('cultures', '')) 
-                for culture in selected_cultures
-            )]
-        
-        # Фильтр по заболеваниям
-        if self.filters and self.filters.get('diseases'):
-            selected_diseases = self.filters['diseases']
-            filtered = [p for p in filtered if any(
-                disease in str(p.get('diseases', '')) 
-                for disease in selected_diseases
-            )]
-        
-        # Фильтр по цене
-        if self.filters:
-            min_price = self.filters.get('min_price')
-            max_price = self.filters.get('max_price')
-            
-            if min_price and min_price.strip():
-                try:
-                    min_val = float(min_price.replace(' ', ''))
-                    filtered = [p for p in filtered if self._extract_price(p.get('price', 0)) >= min_val]
-                except ValueError:
-                    pass
-            
-            if max_price and max_price.strip():
-                try:
-                    max_val = float(max_price.replace(' ', ''))
-                    filtered = [p for p in filtered if self._extract_price(p.get('price', 0)) <= max_val]
-                except ValueError:
-                    pass
-        
-        return filtered
-    
+
     def _extract_price(self, price_str):
         """Извлечение числового значения цены из строки"""
         try:

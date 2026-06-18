@@ -12,10 +12,16 @@ from kivy.uix.widget import Widget
 from kivy.clock import Clock
 from kivymd.app import MDApp
 import pandas as pd
-from tkinter import filedialog, Tk
 import os
 from kivy.metrics import dp
 from kivy.properties import StringProperty
+from kivy.utils import platform
+
+if platform == 'android':
+    from plyer import filechooser
+else:
+    import tkinter.filedialog as filedialog
+    import tkinter as Tk
 
 
 Builder.load_string('''
@@ -23,22 +29,45 @@ Builder.load_string('''
     name: 'settings'
     text: 'Импорт/Экспорт'
     icon: 'database-export'
-    
+
     MDBoxLayout:
         orientation: 'vertical'
-        padding: '20dp'
-        spacing: '20dp'
-        
-        MDLabel:
-            text: 'Управление данными'
-            halign: 'center'
-            font_style: 'H5'
+        padding: '10dp'
+        spacing: '10dp'
+
+        # Кастомная шапка
+        MDBoxLayout:
+            orientation: 'horizontal'
             size_hint_y: None
-            height: self.texture_size[1]
-        
+            height: dp(40)
+            padding: [dp(10), 0, dp(10), 0]
+            spacing: dp(10)
+            md_bg_color: [0.95, 0.95, 0.95, 1]
+
+            MDLabel:
+                text: "Управление данными"
+                font_style: "H6"
+                size_hint_x: 1
+                size_hint_y: 1
+                theme_text_color: "Custom"
+                text_color: (0, 0, 0, 1)
+                halign: "center"
+                valign: "middle"
+
+            MDIconButton:
+                icon: "help-circle-outline"
+                theme_icon_color: "Custom"
+                icon_color: "green"
+                size_hint: None, None
+                size: dp(32), dp(32)
+                pos_hint: {"center_y": 0.5}
+                on_release: root.show_help()
+
+        # Список с прокруткой (как раньше)
         ScrollView:
             MDList:
                 id: settings_list
+
                 
 <ImportExportDialog>:
     orientation: "vertical"
@@ -87,6 +116,118 @@ class SettingsTab(MDBottomNavigationItem):
         """Вызывается при переходе на вкладку"""
         self._setup_settings_list()
     
+    def show_help(self):
+        """Показать справочную информацию по модулю управления данными"""
+        help_text = (
+            "Импорт препаратов из Excel:\n"
+            "  • Добавляет новые препараты из прайс-листа. Дубликаты по названию пропускаются.\n\n"
+            "Обновить препараты из Excel:\n"
+            "  • Обновляет цены, упаковку, нормы расхода и действующие вещества у существующих препаратов. "
+            "Добавляет новые, если их нет в базе.\n\n"
+            "Импорт описаний препаратов из Excel:\n"
+            "  • Заполняет описания, культуры и болезни для уже имеющихся препаратов.\n\n"
+            "Экспорт каталога в Excel:\n"
+            "  • Сохраняет весь каталог в файл Excel с полной информацией.\n\n"
+            "Очистить БД:\n"
+            "  • Удаляет все данные о препаратах, клиентах и заказах. Справочники (культуры, болезни, "
+            "действующие вещества) также очищаются.\n\n"
+            "Шаблоны импорта:\n"
+            "  • «Скачать шаблон импорта препаратов» – Excel-файл с колонками:\n"
+            "    Препараты, Состав, Производитель, Упаковка, Норма расхода, кг(л)/га, Цена за ед. (с НДС) в руб.\n"
+            "  • «Скачать шаблон импорта описаний» – Excel-файл с колонками:\n"
+            "    Название, Культуры, Болезни, Описание.\n\n"
+            "Порядок обновления каталога:\n"
+            "  1. Импортируйте препараты (или обновите их) из прайс-листа.\n"
+            "  2. При необходимости импортируйте описания.\n"
+            "  3. Используйте экспорт для создания резервной копии."
+        )
+
+        content = MDBoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(490),
+            spacing=dp(8),
+            padding=dp(17),
+            md_bg_color=(0.96, 0.96, 0.96, 1),
+        )
+
+        label = MDLabel(
+            text=help_text,
+            theme_text_color="Custom",
+            text_color=(0, 0, 0, 1),
+            size_hint_y=None,
+            halign="left",
+            valign="top",
+            font_style="Caption",
+        )
+        label.bind(texture_size=label.setter('size'))
+
+        scroll = ScrollView(size_hint_y=1, do_scroll_x=False)
+        scroll.add_widget(label)
+        content.add_widget(scroll)
+
+        dialog = MDDialog(
+            title="Справочная информация",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(
+                    text="Закрыть",
+                    theme_text_color="Custom",
+                    text_color="white",
+                    md_bg_color="green",
+                    on_release=lambda x: dialog.dismiss()
+                )
+            ],
+            size_hint=(0.95, 0.85)
+        )
+
+        def set_title_color(dialog_inst, dt):
+            for child in dialog_inst.children:
+                if hasattr(child, 'title') and hasattr(child, 'text_color'):
+                    child.theme_text_color = "Custom"
+                    child.text_color = (0, 0.7, 0, 1)
+                    break
+        Clock.schedule_once(lambda dt: set_title_color(dialog, dt), 0.1)
+
+        dialog.open()
+
+    def _open_file_dialog(self, title, filters, on_success):
+        """Открывает диалог выбора файла. on_success(file_path) будет вызван при выборе."""
+        if platform == 'android':
+            android_filters = [f[1] for f in filters]
+            filechooser.open_file(title=title, filters=android_filters, on_selection=lambda sel: self._on_file_selected(sel, on_success))
+        else:
+            root = Tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            file_path = filedialog.askopenfilename(title=title, filetypes=filters)
+            root.destroy()
+            if file_path:
+                on_success(file_path)
+
+    def _save_file_dialog(self, title, filters, default_name, on_success):
+        """Открывает диалог сохранения файла. on_success(file_path) будет вызван при выборе."""
+        if platform == 'android':
+            android_filters = [f[1] for f in filters]  
+            filechooser.save_file(title=title, filters=android_filters, filename=default_name,
+                                on_selection=lambda sel: self._on_file_selected(sel, on_success))
+        else:
+            root = Tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            file_path = filedialog.asksaveasfilename(title=title, defaultextension=".xlsx",
+                                                    filetypes=filters, initialfile=default_name)
+            root.destroy()
+            if file_path:
+                on_success(file_path)
+
+    def _on_file_selected(self, selection, callback):
+        """Вспомогательный метод для обработки результата Plyer filechooser."""
+        if selection and len(selection) > 0:
+            callback(selection[0])
+        # else пользователь отменил выбор – ничего не делаем
+
     def _setup_settings_list(self):
         """Настройка списка параметров"""
         settings_list = self.ids.settings_list
@@ -105,45 +246,18 @@ class SettingsTab(MDBottomNavigationItem):
             text=" Импорт описаний препаратов из Excel",
             on_release=lambda x: self.start_import_descriptions()
         ))
-        # settings_list.add_widget(OneLineListItem(
-        #     text=" Импорт клиентов из Excel", 
-        #     on_release=lambda x: self.show_import_dialog("клиенты")
-        # ))
-        
+  
         # Секция экспорта данных
         settings_list.add_widget(OneLineListItem(
             text=" Экспорт каталога в Excel",
             on_release=lambda x: self.show_export_dialog("каталог")
         ))
-        
-        # settings_list.add_widget(OneLineListItem(
-        #     text=" Экспорт заказов в Excel",
-        #     on_release=lambda x: self.show_export_dialog("заказы")
-        # ))
-        
-        # settings_list.add_widget(OneLineListItem(
-        #     text=" Экспорт коммерческого предложения",
-        #     on_release=lambda x: self.show_export_dialog("КП")
-        # ))
-        
-        # Секция управления БД
-        # settings_list.add_widget(OneLineListItem(
-        #     text=" Обновить базу данных",
-        #     on_release=lambda x: self.update_database()
-        # ))
-        
-        # settings_list.add_widget(OneLineListItem(
-        #     text=" Очистить локальные данные",
-        #     on_release=lambda x: self.clear_database()
-        # ))
+      
         settings_list.add_widget(OneLineListItem(
             text=" Очистить БД",
             on_release=lambda x: self.confirm_clear_except_models()
         ))
-        # settings_list.add_widget(OneLineListItem(
-        #     text=" Обновить классы заболеваний",
-        #     on_release=lambda x: self.update_disease_classes()
-        # ))
+ 
         # Шаблоны
         settings_list.add_widget(OneLineListItem(
             text=" Скачать шаблон импорта препаратов",
@@ -155,29 +269,20 @@ class SettingsTab(MDBottomNavigationItem):
         ))
 
     def start_import_descriptions(self):
-        """Выбор файла с описаниями, затем выбор листов"""
-        root = Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        start_dir = r"C:\Users\Нелли\Desktop\Предзащита"
-        if not os.path.exists(start_dir):
-            start_dir = os.getcwd()
-        file_path = filedialog.askopenfilename(
-            initialdir=start_dir,
-            title="Выберите Excel-файл с описаниями (колонки: Название, Культуры, Болезни, Описание)",
-            filetypes=[("Excel files", "*.xlsx")]
+        def on_file_selected(file_path):
+            self.current_import_file = file_path
+            try:
+                xl = pd.ExcelFile(file_path)
+                sheets = xl.sheet_names
+                self.show_description_sheet_selection_dialog(sheets)
+            except Exception as e:
+                self.show_message(f"Ошибка чтения файла: {e}")
+
+        self._open_file_dialog(
+            title="Выберите Excel-файл с описаниями",
+            filters=[("Excel files", "*.xlsx")],
+            on_success=on_file_selected
         )
-        root.destroy()
-        if not file_path:
-            return
-        self.current_import_file = file_path
-        try:
-            xl = pd.ExcelFile(file_path)
-            sheets = xl.sheet_names
-        except Exception as e:
-            self.show_message(f"Ошибка чтения файла: {e}")
-            return
-        self.show_description_sheet_selection_dialog(sheets)
 
     def show_description_sheet_selection_dialog(self, sheets):
         """Диалог с чекбоксами для выбора листов описаний"""
@@ -199,8 +304,22 @@ class SettingsTab(MDBottomNavigationItem):
         scroll.add_widget(list_widget)
         content.add_widget(scroll)
         btn_box = MDBoxLayout(orientation='horizontal', size_hint_y=None, height=48, spacing=10, padding=10)
-        btn_cancel = MDFlatButton(text="Отмена", on_release=lambda x: self.close_dialog())
-        btn_ok = MDRaisedButton(text="Далее", on_release=lambda x: self.process_selected_description_sheets(checkboxes))
+       
+        btn_cancel = MDFlatButton(
+            text="Отмена",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.close_dialog()
+        )
+        btn_ok = MDRaisedButton(
+            text="Далее",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.process_selected_description_sheets(checkboxes)
+        )
+        
         btn_box.add_widget(btn_cancel)
         btn_box.add_widget(btn_ok)
         content.add_widget(btn_box)
@@ -232,7 +351,11 @@ class SettingsTab(MDBottomNavigationItem):
                 df = pd.read_excel(self.current_import_file, sheet_name=sheet_name, header=0)
                 required = ['Название', 'Культуры', 'Болезни', 'Описание']
                 if not all(col in df.columns for col in required):
-                    not_found_list.append((f"Лист '{sheet_name}'", "Отсутствуют необходимые колонки"))
+                    missing = [col for col in required if col not in df.columns]
+                    found = [col for col in df.columns if col in required]
+                    not_found_list.append((
+                        f"Лист '{sheet_name}'",
+                        f"Отсутствуют колонки: {', '.join(missing)}.\nНайдены: {', '.join(found) if found else 'нет'}" ))
                     continue
 
                 for _, row in df.iterrows():
@@ -262,13 +385,7 @@ class SettingsTab(MDBottomNavigationItem):
                         cursor.execute("DELETE FROM pesticide_cultures WHERE pesticide_id = ?", (pesticide_id,))
                         culture_list = [c.strip() for c in cultures_str.split(',') if c.strip()]
                         for cult_name in culture_list:
-                            cursor.execute("SELECT id FROM cultures WHERE culture_name = ?", (cult_name,))
-                            cult_res = cursor.fetchone()
-                            if not cult_res:
-                                cursor.execute("INSERT INTO cultures (culture_name) VALUES (?)", (cult_name,))
-                                culture_id = cursor.lastrowid
-                            else:
-                                culture_id = cult_res['id']
+                            culture_id = db.get_or_create_culture(cult_name, cursor=cursor)
                             cursor.execute("INSERT OR IGNORE INTO pesticide_cultures (pesticide_id, culture_id) VALUES (?, ?)",
                                         (pesticide_id, culture_id))
                         has_changes = True
@@ -277,13 +394,7 @@ class SettingsTab(MDBottomNavigationItem):
                         cursor.execute("DELETE FROM pesticide_diseases WHERE pesticide_id = ?", (pesticide_id,))
                         disease_list = [d.strip() for d in diseases_str.split(',') if d.strip()]
                         for dis_name in disease_list:
-                            cursor.execute("SELECT id FROM diseases WHERE disease_name = ?", (dis_name,))
-                            dis_res = cursor.fetchone()
-                            if not dis_res:
-                                cursor.execute("INSERT INTO diseases (disease_name) VALUES (?)", (dis_name,))
-                                disease_id = cursor.lastrowid
-                            else:
-                                disease_id = dis_res['id']
+                            disease_id = db.get_or_create_disease(dis_name, cursor=cursor)
                             cursor.execute("INSERT OR IGNORE INTO pesticide_diseases (pesticide_id, disease_id) VALUES (?, ?)",
                                         (pesticide_id, disease_id))
                         has_changes = True
@@ -314,7 +425,7 @@ class SettingsTab(MDBottomNavigationItem):
         report_text += f"Не найдено: {len(not_found)}\n"
 
         if not_found:
-            report_text += "\nСписок ненайденных препаратов будет доступен по кнопке «Пропуски»."
+            report_text += "\nСписок ненайденных препаратов будет доступен по кнопке «Подробнее»."
 
         label = MDLabel(
             text=report_text,
@@ -327,9 +438,27 @@ class SettingsTab(MDBottomNavigationItem):
         scroll = ScrollView(size_hint=(1, 1))
         scroll.add_widget(label)
 
-        btn_cancel = MDFlatButton(text="Отмена", on_release=lambda x: self.cancel_import())
-        btn_skipped = MDFlatButton(text="Пропуски", on_release=lambda x: self.show_description_skipped_dialog())
-        btn_confirm = MDRaisedButton(text="Принять", on_release=lambda x: self.confirm_description_import())
+        btn_cancel = MDFlatButton(
+            text="Отмена",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.cancel_import()
+        )
+        btn_skipped = MDFlatButton(
+            text="Подробнее",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.show_description_skipped_dialog()
+        )
+        btn_confirm = MDRaisedButton(
+            text="Принять",  # или "Обновить"
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.confirm_description_import()
+        )
 
         btn_box = MDBoxLayout(orientation='horizontal', size_hint_y=None, height=48, spacing=10, padding=[10,5,10,5])
         btn_box.add_widget(btn_cancel)
@@ -374,7 +503,6 @@ class SettingsTab(MDBottomNavigationItem):
         self.current_import_stats = None
 
     def show_description_skipped_dialog(self):
-        """Показать список препаратов, не найденных при импорте описаний"""
         stats = self.current_import_stats
         if not stats:
             return
@@ -387,21 +515,50 @@ class SettingsTab(MDBottomNavigationItem):
             self.skipped_dialog.dismiss()
             self.skipped_dialog = None
 
-        items_box = MDBoxLayout(orientation='vertical', size_hint_y=None, spacing=5)
+        items_box = MDBoxLayout(
+            orientation='vertical',
+            size_hint_y=None,
+            spacing=6
+        )
         items_box.bind(minimum_height=items_box.setter('height'))
+
         for name, reason in not_found:
-            item = ThreeLineListItem(
-                text=name,
-                secondary_text=reason,
+            item_box = MDBoxLayout(
+                orientation='vertical',
                 size_hint_y=None,
-                height=dp(60),
-                font_style='Body2'
+                adaptive_height=True,
+                spacing=2,
+                padding=[5, 5, 5, 5]
             )
-            items_box.add_widget(item)
+            lbl_name = MDLabel(
+                text=name,
+                font_style='Subtitle1',
+                theme_text_color='Primary',
+                size_hint_y=None,
+                halign='left'
+            )
+            lbl_reason = MDLabel(
+                text=reason,
+                font_style='Body2',
+                theme_text_color='Secondary',
+                size_hint_y=None,
+                halign='left'
+            )
+            lbl_name.bind(texture_size=lbl_name.setter('size'))
+            lbl_reason.bind(texture_size=lbl_reason.setter('size'))
+            item_box.add_widget(lbl_name)
+            item_box.add_widget(lbl_reason)
+            items_box.add_widget(item_box)
 
         scroll = ScrollView(size_hint=(1, 1))
         scroll.add_widget(items_box)
-        btn_close = MDFlatButton(text="Закрыть")
+
+        btn_close = MDFlatButton(
+            text="Закрыть",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+        )
         btn_close.bind(on_release=lambda instance: self.close_skipped_dialog())
         content = MDBoxLayout(orientation='vertical', spacing=6, size_hint_y=None, height=dp(300))
         content.add_widget(scroll)
@@ -437,130 +594,11 @@ class SettingsTab(MDBottomNavigationItem):
         for table in tables:
             cursor.execute(f"DELETE FROM {table}")
         app.db.connection.commit()
+
         self.show_message("База данных очищена (классы болезней и видов сохранены).")
         self.show_info_dialog("Очистка БД", "База данных очищена (классы болезней и видов сохранены).")
 
-    def import_pesticides_from_excel(self):
-    # Диалог выбора файла
-        root = Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        file_path = filedialog.askopenfilename(
-            title="Выберите Excel-файл с прайс-листом",
-            filetypes=[("Excel files", "*.xlsx")]
-        )
-        root.destroy()
-        if not file_path:
-            return
-
-        try:
-            # Читаем все листы
-            xl = pd.ExcelFile(file_path)
-            app = MDApp.get_running_app()
-            db = app.db
-            cursor = db.connection.cursor()
-
-            total_inserted = 0
-            errors = []
-
-            for sheet_name in xl.sheet_names:
-                # Пропускаем листы, где нет данных (например, пустые)
-                df = pd.read_excel(xl, sheet_name=sheet_name, header=None)
-                if df.empty:
-                    continue
-
-                # Определяем тип пестицида по имени листа (нормализуем)
-                pesticide_type = sheet_name.strip().upper()
-                # Приводим к формату: "Гербициды", "Инсектициды", "Фунгициды" и т.д.
-                type_mapping = {
-                    "ГЕРБИЦИДЫ": "Гербициды",
-                    "ИНСЕКТИЦИДЫ": "Инсектициды",
-                    "ФУНГИЦИДЫ": "Фунгициды",
-                    "ДЕСИКАНТЫ": "Десиканты",
-                    "ПРОТРАВИТЕЛИ": "Протравители",
-                    "ФУМИГАНТЫ": "Фумиганты",
-                    "СПЕЦПРЕПАРАТЫ": "Спецпрепараты",
-                    "РОДЕНТИЦИДЫ": "Родентициды"
-                }
-                ptype = type_mapping.get(pesticide_type, pesticide_type.capitalize())
-
-                # Находим строку с заголовками (ищем "Препараты")
-                header_row = None
-                for idx, row in df.iterrows():
-                    first_cell = str(row.iloc[0]).strip()
-                    if first_cell == "№ п/п" or first_cell == "Препараты" or "препараты" in first_cell.lower():
-                        header_row = idx
-                        break
-                if header_row is None:
-                    # Если заголовок не найден, пробуем предположить, что данные начинаются с 3-й строки
-                    header_row = 2 if len(df) > 2 else 0
-
-                # Устанавливаем заголовки
-                df.columns = df.iloc[header_row].astype(str).str.strip()
-                # Смещаем DataFrame на строки после заголовка
-                df = df.iloc[header_row + 1:].reset_index(drop=True)
-
-                # Проверяем наличие нужных колонок
-                required_cols = ['Препараты', 'Состав', 'Производитель', 'Упаковка', 'Норма расхода, кг(л)/га', 'Цена за ед. (с НДС) в руб.']
-                if not all(col in df.columns for col in required_cols):
-                    # Возможно, колонки названы иначе (например, "Норма расхода")
-                    continue
-
-                for _, row in df.iterrows():
-                    # Пропускаем пустые строки
-                    if pd.isna(row['Препараты']) or str(row['Препараты']).strip() == "":
-                        continue
-
-                    # Извлекаем данные, очищаем от пробелов и перевода строк
-                    name = str(row['Препараты']).strip()
-                    composition = str(row['Состав']).strip() if pd.notna(row['Состав']) else ""
-                    manufacturer = str(row['Производитель']).strip() if pd.notna(row['Производитель']) else ""
-                    packaging = str(row['Упаковка']).strip() if pd.notna(row['Упаковка']) else ""
-                    rate = str(row['Норма расхода, кг(л)/га']).strip() if pd.notna(row['Норма расхода, кг(л)/га']) else ""
-                    price_str = str(row['Цена за ед. (с НДС) в руб.']).strip() if pd.notna(row['Цена за ед. (с НДС) в руб.']) else ""
-                    # Преобразуем цену в число
-                    try:
-                        price = float(price_str.replace(',', '.'))
-                    except:
-                        price = 0.0
-
-                    # Вставляем тип пестицида, если его нет
-                    cursor.execute("SELECT id FROM pesticide_types WHERE type_name = ?", (ptype,))
-                    res = cursor.fetchone()
-                    if not res:
-                        cursor.execute("INSERT INTO pesticide_types (type_name) VALUES (?)", (ptype,))
-                        type_id = cursor.lastrowid
-                    else:
-                        type_id = res[0]
-
-                    # Проверяем, есть ли уже препарат с таким именем (чтобы не дублировать)
-                    cursor.execute("SELECT id FROM pesticides WHERE name = ?", (name,))
-                    if cursor.fetchone():
-                        continue  # пропускаем дубликат
-
-                    # Вставляем препарат
-                    cursor.execute('''
-                        INSERT INTO pesticides (name, description, application_rate, packaging, price, manufacturer, pesticide_type_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (name,  "", rate, packaging, price, manufacturer, type_id))
-                    total_inserted += 1
-
-            db.connection.commit()
-            self.show_message(f"✅ Импортировано препаратов: {total_inserted}")
-            # Обновляем каталог (если нужно)
-            app = MDApp.get_running_app()
-            # Находим экран каталога и перезагружаем его
-            if app.screen_manager:
-                for screen in app.screen_manager.screens:
-                    if screen.name == 'catalog':
-                        if hasattr(screen, '_load_pesticides'):
-                            screen._load_pesticides()
-                        break
-
-        except Exception as e:
-            self.show_message(f"❌ Ошибка импорта: {e}")
-            import traceback
-            traceback.print_exc()
+    
 
     def show_import_dialog(self, data_type):
         if data_type == "препараты":
@@ -581,33 +619,22 @@ class SettingsTab(MDBottomNavigationItem):
             self.dialog.open()
     
     def start_import_pesticides(self):
-            """Выбор файла и последующая обработка"""
-            root = Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
-            # Устанавливаем начальную папку для тестирования
-            start_dir = r"C:\Users\Нелли\Desktop\Предзащита"
-            if not os.path.exists(start_dir):
-                start_dir = os.getcwd()
-            file_path = filedialog.askopenfilename(
-                initialdir=start_dir,
-                title="Выберите Excel-файл с прайс-листом",
-                filetypes=[("Excel files", "*.xlsx")]
-            )
-            root.destroy()
-            if not file_path:
-                return
+        def on_file_selected(file_path):
             self.current_import_file = file_path
-            # Читаем имена листов
             try:
                 xl = pd.ExcelFile(file_path)
                 sheets = xl.sheet_names
+                self.show_sheet_selection_dialog(sheets)
             except Exception as e:
                 self.show_message(f"Ошибка чтения файла: {e}")
-                return
-            # Открываем диалог выбора листов
-            self.show_sheet_selection_dialog(sheets)
 
+        self._open_file_dialog(
+            title="Выберите Excel-файл с прайс-листом",
+            filters=[("Excel files", "*.xlsx")],
+            on_success=on_file_selected
+        )
+
+    
     def show_sheet_selection_dialog(self, sheets):
             """Диалог с чекбоксами для выбора листов"""
             content = MDBoxLayout(orientation='vertical', spacing=10, size_hint_y=None)
@@ -630,8 +657,24 @@ class SettingsTab(MDBottomNavigationItem):
             content.add_widget(scroll)
             # Кнопки
             btn_box = MDBoxLayout(orientation='horizontal', size_hint_y=None, height=48, spacing=10, padding=10)
-            btn_cancel = MDFlatButton(text="Отмена", on_release=lambda x: self.close_dialog())
-            btn_ok = MDRaisedButton(text="Далее", on_release=lambda x: self.process_selected_sheets(checkboxes))
+            
+            btn_cancel = MDFlatButton(
+                text="Отмена",
+                theme_text_color="Custom",
+                text_color="white",
+                md_bg_color="green",
+                on_release=lambda x: self.close_dialog()
+            )
+            btn_ok = MDRaisedButton(
+                text="Далее",
+                theme_text_color="Custom",
+                text_color="white",
+                md_bg_color="green",
+                on_release=lambda x: self.process_selected_sheets(checkboxes)
+            )
+ 
+            # btn_ok = MDRaisedButton(text="Далее", 
+            #                         on_release=lambda x: self.process_selected_sheets(checkboxes))
             btn_box.add_widget(btn_cancel)
             btn_box.add_widget(btn_ok)
             content.add_widget(btn_box)
@@ -690,15 +733,21 @@ class SettingsTab(MDBottomNavigationItem):
                 # 2. Получаем заголовки и обрезаем DataFrame до строк после заголовка
                 df.columns = df.iloc[header_row].astype(str).str.strip()
                 data_df = df.iloc[header_row + 1:].reset_index(drop=True)
-
+                # print(f"DEBUG: лист '{sheet_name}', строк данных: {len(data_df)}")
                 # Необходимые колонки
                 required = ['Препараты', 'Состав', 'Производитель', 'Упаковка',
                             'Норма расхода, кг(л)/га', 'Цена за ед. (с НДС) в руб.']
 
                 # Проверяем наличие колонок (если нет – пробуем найти альтернативные названия)
                 if not all(col in df.columns for col in required):
-                    # Можно добавить логику поиска похожих колонок, но для простоты пропустим лист
-                    report_lines.append(f"Лист '{sheet_name}': не найдены необходимые колонки, пропущен")
+                    missing = [col for col in required if col not in df.columns]
+                    found = [col for col in df.columns if col in required]
+                    report_lines.append(
+                        f"Лист '{sheet_name}': не найдены необходимые колонки.\n"
+                        f"   Ожидались: {', '.join(required)}\n"
+                        f"   Найдены: {', '.join(found) if found else 'нет'}\n"
+                        f"   Отсутствуют: {', '.join(missing)}"
+                    )
                     continue
 
                 sheet_inserted = 0
@@ -749,7 +798,9 @@ class SettingsTab(MDBottomNavigationItem):
                     # Проверка дубликата по имени
                     cursor.execute("SELECT id FROM pesticides WHERE name = ?", (name,))
                     if cursor.fetchone():
+                        # print(f"DEBUG: дубликат (импорт): '{name}' уже существует в БД или был добавлен ранее в этой транзакции")
                         sheet_duplicates += 1
+                        self.skipped_items.append((sheet_name, name, "Дубликат в файле"))
                         continue
 
                     # Вставляем препарат
@@ -812,9 +863,9 @@ class SettingsTab(MDBottomNavigationItem):
         stats = self.current_import_stats
         report_text = f"Обработано листов: {stats['sheets']}\n"
         report_text += f"Добавлено препаратов: {stats['inserted']}\n"
-        report_text += f"Пропущено (неверная цена): {stats['skipped']}\n"
-        report_text += f"Дубликатов (уже есть в БД): {stats['duplicates']}\n\n"
-        if stats['sheets'] > 1:
+        report_text += f"Пропущено: {stats['skipped']}\n"
+        report_text += f"Дубликатов: {stats['duplicates']}\n\n"
+        if stats.get('report'):
             report_text += "\nДетали по листам:\n" + "\n".join(stats['report'])
         # Создаём MDLabel с возможностью прокрутки
         label = MDLabel(
@@ -828,9 +879,29 @@ class SettingsTab(MDBottomNavigationItem):
         scroll = ScrollView(size_hint=(1, 1))
         scroll.add_widget(label)
         # Кнопки
-        btn_cancel = MDFlatButton(text="Отмена", on_release=lambda x: self.cancel_import())
-        btn_skipped = MDFlatButton(text="Пропуски", on_release=lambda x: self.show_skipped_dialog())
-        btn_confirm = MDRaisedButton(text="Принять", on_release=lambda x: self.confirm_import())
+     
+        btn_cancel = MDFlatButton(
+            text="Отмена",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.cancel_import()
+        )
+        btn_skipped = MDFlatButton(
+            text="Подробнее",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.show_skipped_dialog()
+        )
+        btn_confirm = MDRaisedButton(
+            text="Принять",  # или "Обновить"
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.confirm_import()
+        )
+
         # Горизонтальный контейнер для кнопок
         btn_box = MDBoxLayout(
             orientation='horizontal',
@@ -847,7 +918,8 @@ class SettingsTab(MDBottomNavigationItem):
             orientation='vertical',
             spacing=10,
             size_hint_y=None,
-            height=scroll.height + btn_box.height + 20
+            # height=scroll.height + btn_box.height + 20
+            height=dp(150)
         )
         content.add_widget(scroll)
         content.add_widget(btn_box)
@@ -856,7 +928,7 @@ class SettingsTab(MDBottomNavigationItem):
             title="Результат импорта",
             type="custom",
             content_cls=content,
-            size_hint=(0.9, 0.8),
+            size_hint=(0.9, 0.9),
             auto_dismiss=False
         )
         dialog.open()
@@ -897,48 +969,70 @@ class SettingsTab(MDBottomNavigationItem):
         self.current_import_stats = None
 
     def show_skipped_dialog(self):
-        print(f"Открываю skipped, элементов: {len(self.skipped_items)}")
         if not self.skipped_items:
             self.show_message("Нет пропущенных записей")
             return
 
-        # Закрываем старый диалог пропусков, если был
         if self.skipped_dialog:
             self.skipped_dialog.dismiss()
             self.skipped_dialog = None
 
-        items_box = MDBoxLayout(orientation='vertical', size_hint_y=None, spacing=5)
+        items_box = MDBoxLayout(orientation='vertical', size_hint_y=None, spacing=6)
         items_box.bind(minimum_height=items_box.setter('height'))
 
         for sheet, name, reason in self.skipped_items:
-            item = ThreeLineListItem(
-                text=name,
-                secondary_text=f"Лист: {sheet}",
-                tertiary_text=reason,
+            item_box = MDBoxLayout(
+                orientation='vertical',
                 size_hint_y=None,
-                height=dp(40),
-                font_style='Body2'
+                adaptive_height=True,
+                spacing=2,
+                padding=[5, 5, 5, 5]
             )
-            items_box.add_widget(item)
+            lbl_name = MDLabel(
+                text=name,
+                font_style='Subtitle1',
+                theme_text_color='Primary',
+                size_hint_y=None,
+                halign='left'
+            )
+            lbl_sheet = MDLabel(
+                text=f"Лист: {sheet}",
+                font_style='Body2',
+                theme_text_color='Secondary',
+                size_hint_y=None,
+                halign='left'
+            )
+            lbl_reason = MDLabel(
+                text=reason,
+                font_style='Body2',
+                theme_text_color='Secondary',
+                size_hint_y=None,
+                halign='left'
+            )
+            lbl_name.bind(texture_size=lbl_name.setter('size'))
+            lbl_sheet.bind(texture_size=lbl_sheet.setter('size'))
+            lbl_reason.bind(texture_size=lbl_reason.setter('size'))
+            item_box.add_widget(lbl_name)
+            item_box.add_widget(lbl_sheet)
+            item_box.add_widget(lbl_reason)
+            items_box.add_widget(item_box)
 
         scroll = ScrollView(size_hint=(1, 1))
         scroll.add_widget(items_box)
 
-        btn_close = MDFlatButton(text="Закрыть")
-        # Привязываем закрытие именно диалога пропусков
-        btn_close.bind(on_release=lambda instance: self.close_skipped_dialog())
-
-        content = MDBoxLayout(
-            orientation='vertical',
-            spacing=6,
-            size_hint_y=None,
-            height=dp(350)
+        btn_close = MDFlatButton(
+            text="Закрыть",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
         )
+        btn_close.bind(on_release=lambda instance: self.close_skipped_dialog())
+        content = MDBoxLayout(orientation='vertical', spacing=6, size_hint_y=None, height=dp(300))
         content.add_widget(scroll)
         content.add_widget(btn_close)
 
         self.skipped_dialog = MDDialog(
-            title="Пропущенные записи",
+            title="Пропущенные и дублирующиеся записи",
             type="custom",
             content_cls=content,
             size_hint=(0.9, 0.8),
@@ -952,29 +1046,20 @@ class SettingsTab(MDBottomNavigationItem):
             self.skipped_dialog = None
 
     def start_update_pesticides(self):
-        """Выбор файла для обновления препаратов (аналогично импорту)"""
-        root = Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        start_dir = r"C:\Users\Нелли\Desktop\Предзащита"
-        if not os.path.exists(start_dir):
-            start_dir = os.getcwd()
-        file_path = filedialog.askopenfilename(
-            initialdir=start_dir,
+        def on_file_selected(file_path):
+            self.current_import_file = file_path
+            try:
+                xl = pd.ExcelFile(file_path)
+                sheets = xl.sheet_names
+                self.show_sheet_selection_dialog_for_update(sheets)
+            except Exception as e:
+                self.show_message(f"Ошибка чтения файла: {e}")
+
+        self._open_file_dialog(
             title="Выберите Excel-файл с прайс-листом для обновления",
-            filetypes=[("Excel files", "*.xlsx")]
+            filters=[("Excel files", "*.xlsx")],
+            on_success=on_file_selected
         )
-        root.destroy()
-        if not file_path:
-            return
-        self.current_import_file = file_path
-        try:
-            xl = pd.ExcelFile(file_path)
-            sheets = xl.sheet_names
-        except Exception as e:
-            self.show_message(f"Ошибка чтения файла: {e}")
-            return
-        self.show_sheet_selection_dialog_for_update(sheets)
 
     def show_sheet_selection_dialog_for_update(self, sheets):
         """Диалог выбора листов для обновления (такой же, как для импорта)"""
@@ -996,8 +1081,22 @@ class SettingsTab(MDBottomNavigationItem):
         scroll.add_widget(list_widget)
         content.add_widget(scroll)
         btn_box = MDBoxLayout(orientation='horizontal', size_hint_y=None, height=48, spacing=10, padding=10)
-        btn_cancel = MDFlatButton(text="Отмена", on_release=lambda x: self.close_dialog())
-        btn_ok = MDRaisedButton(text="Далее", on_release=lambda x: self.process_selected_sheets_for_update(checkboxes))
+                
+        btn_cancel = MDFlatButton(
+            text="Отмена",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.close_dialog()
+        )
+        btn_ok = MDRaisedButton(
+            text="Далее",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.process_selected_sheets_for_update(checkboxes)
+        )
+        
         btn_box.add_widget(btn_cancel)
         btn_box.add_widget(btn_ok)
         content.add_widget(btn_box)
@@ -1071,11 +1170,18 @@ class SettingsTab(MDBottomNavigationItem):
 
                 df.columns = df.iloc[header_row].astype(str).str.strip()
                 data_df = df.iloc[header_row + 1:].reset_index(drop=True)
-
+                # print(f"DEBUG: лист '{sheet_name}', строк данных: {len(data_df)}")
                 required = ['Препараты', 'Состав', 'Производитель', 'Упаковка',
                             'Норма расхода, кг(л)/га', 'Цена за ед. (с НДС) в руб.']
                 if not all(col in data_df.columns for col in required):
-                    report_lines.append(f"Лист '{sheet_name}': не найдены необходимые колонки, пропущен")
+                    missing = [col for col in required if col not in data_df.columns]
+                    found = [col for col in data_df.columns if col in required]
+                    report_lines.append(
+                        f"Лист '{sheet_name}': не найдены необходимые колонки.\n"
+                        f"   Ожидались: {', '.join(required)}\n"
+                        f"   Найдены: {', '.join(found) if found else 'нет'}\n"
+                        f"   Отсутствуют: {', '.join(missing)}"
+                    )
                     continue
 
                 sheet_new = 0
@@ -1240,7 +1346,7 @@ class SettingsTab(MDBottomNavigationItem):
         report_text += f"Обновлено: {stats['updated']}\n"
         report_text += f"Без изменений: {stats['unchanged']}\n"
         report_text += f"Пропущено (неверная цена): {stats['skipped']}\n\n"
-        if stats['sheets'] > 1:
+        if stats.get('report'):
             report_text += "\nДетали по листам:\n" + "\n".join(stats['report'])
         label = MDLabel(
             text=report_text,
@@ -1252,17 +1358,46 @@ class SettingsTab(MDBottomNavigationItem):
         label.bind(texture_size=label.setter('size'))
         scroll = ScrollView(size_hint=(1, 1))
         scroll.add_widget(label)
-        btn_cancel = MDFlatButton(text="Отмена", on_release=lambda x: self.cancel_import())
-        btn_skipped = MDFlatButton(text="Пропуски", on_release=lambda x: self.show_skipped_dialog())
-        btn_confirm = MDRaisedButton(text="Обновить", on_release=lambda x: self.confirm_import())
+
+        btn_cancel = MDFlatButton(
+            text="Отмена",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.cancel_import()
+        )
+        btn_skipped = MDFlatButton(
+            text="Подробнее",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.show_skipped_dialog()
+        )
+        btn_confirm = MDRaisedButton(
+            text="Принять",  # или "Обновить"
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.confirm_import()
+        )
+
         btn_box = MDBoxLayout(orientation='horizontal', size_hint_y=None, height=48, spacing=10, padding=[10,5,10,5])
         btn_box.add_widget(btn_cancel)
         btn_box.add_widget(btn_skipped)
         btn_box.add_widget(btn_confirm)
-        content = MDBoxLayout(orientation='vertical', spacing=10, size_hint_y=None, height=scroll.height + btn_box.height + 20)
+        content = MDBoxLayout(
+            orientation='vertical', 
+            spacing=10, 
+            size_hint_y=None, 
+            # height=scroll.height + btn_box.height + 20
+            height=dp(150)
+            )
         content.add_widget(scroll)
         content.add_widget(btn_box)
-        dialog = MDDialog(title="Результат обновления", type="custom", content_cls=content, size_hint=(0.9, 0.8), auto_dismiss=False)
+        dialog = MDDialog(title="Результат обновления",
+                           type="custom", 
+                           content_cls=content, 
+                           size_hint=(0.9, 0.9), auto_dismiss=False)
         dialog.open()
         self.dialog = dialog
 
@@ -1304,8 +1439,22 @@ class SettingsTab(MDBottomNavigationItem):
         content.add_widget(scroll)
 
         btn_box = MDBoxLayout(size_hint_y=None, height=48, spacing=10)
-        btn_close = MDFlatButton(text="Закрыть", on_release=lambda x: self.close_dialog())
-        btn_save = MDRaisedButton(text="Сохранить", on_release=lambda x: self.save_template(template_type))
+
+        btn_close = MDFlatButton(
+            text="Закрыть",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.close_dialog()
+            )
+        btn_save = MDRaisedButton(
+            text="Сохранить",
+            theme_text_color="Custom",
+            text_color="white",
+            md_bg_color="green",
+            on_release=lambda x: self.save_template(template_type)
+            )
+        
         btn_box.add_widget(btn_close)
         btn_box.add_widget(btn_save)
         content.add_widget(btn_box)
@@ -1350,27 +1499,19 @@ class SettingsTab(MDBottomNavigationItem):
                 'Парша, Плодовая гниль',
                 'Системный фунгицид для защиты яблони'
             ]
-
-        # Диалог сохранения файла через tkinter
-        root = Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        file_path = filedialog.asksaveasfilename(
-            title="Сохранить шаблон",
-            defaultextension=".xlsx",
-            filetypes=[("Excel files", "*.xlsx")],
-            initialdir=os.getcwd(),
-            initialfile=f"template_{template_type}.xlsx"
-        )
-        root.destroy()
-
-        if file_path:
+        def on_file_saved(file_path):
             try:
                 df.to_excel(file_path, index=False)
                 self.show_message(f"Шаблон сохранён: {os.path.basename(file_path)}")
             except Exception as e:
                 self.show_message(f"Ошибка сохранения: {e}")
-        # Если пользователь отменил сохранение – ничего не делаем
+
+        self._save_file_dialog(
+            title="Сохранить шаблон",
+            filters=[("Excel files", "*.xlsx")],
+            default_name=f"template_{template_type}.xlsx",
+            on_success=on_file_saved
+        )
 
 
     def cancel_import(self):
@@ -1427,15 +1568,26 @@ class SettingsTab(MDBottomNavigationItem):
     def show_export_dialog(self, data_type):
         """Показать диалог экспорта"""
         if data_type == "каталог":
-        # Для каталога сразу показываем диалог подтверждения и запускаем экспорт
             self.dialog = MDDialog(
                 title="Экспорт каталога",
-                type="custom",
-                content_cls=ImportExportDialog(
-                    dialog_text="Экспортировать полный каталог препаратов (включая культуры, болезни и описания)?",
-                    confirm_callback=lambda: self.export_full_catalog(),
-                    cancel_callback=self.close_dialog
-                ),
+                text="Экспортировать полный каталог препаратов (включая культуры, болезни и описания)?",
+                
+                buttons=[
+                    MDRaisedButton(
+                        text="Отмена",
+                        theme_text_color="Custom",
+                        text_color="white",
+                        md_bg_color="green",
+                        on_release=lambda x: self.close_dialog()
+                    ),
+                    MDRaisedButton(
+                        text="Экспорт",
+                        theme_text_color="Custom",
+                        text_color="white",
+                        md_bg_color="green",
+                        on_release=lambda x: self.export_full_catalog()
+                    ),
+                ],
                 size_hint=(0.8, None),
                 height="200dp"
             )
@@ -1510,37 +1662,21 @@ class SettingsTab(MDBottomNavigationItem):
 
             df = pd.DataFrame(data_rows)
 
-            # Диалог сохранения файла
-            root = Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
-            file_path = filedialog.asksaveasfilename(
+            def on_file_saved(file_path):
+                try:
+                    df.to_excel(file_path, index=False)
+                    self.show_message(f"Каталог сохранён: {os.path.basename(file_path)}")
+                except Exception as e:
+                    self.show_message(f"Ошибка сохранения: {e}")
+
+            self._save_file_dialog(
                 title="Сохранить каталог",
-                defaultextension=".xlsx",
-                filetypes=[("Excel files", "*.xlsx")],
-                initialdir=os.getcwd(),
-                initialfile="catalog_full.xlsx"
+                filters=[("Excel files", "*.xlsx")],
+                default_name="catalog_full.xlsx",
+                on_success=on_file_saved
             )
-            root.destroy()
-
-            if file_path:
-                df.to_excel(file_path, index=False)
-                self.show_message(f"Каталог сохранён: {os.path.basename(file_path)}")
-            # если отмена – ничего не делаем
-
         except Exception as e:
             self.show_message(f"Ошибка экспорта: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def import_data(self, data_type):
-        """Заглушка для импорта данных"""
-        # print(f" Импорт {data_type} из Excel")
-        # self.show_message(f"Импорт {data_type} выполнен успешно!")
-
-        print(f" Заглушка метода import_data() - Импорт из Excel")
-        self.show_message(f"Заглушка метода import_data()")
-        self.close_dialog()
     
     def export_data(self, data_type):
         """Заглушка для экспорта данных"""
@@ -1576,8 +1712,18 @@ class SettingsTab(MDBottomNavigationItem):
             title="Очистка данных",
             text="Эта операция удалит все препараты, клиентов, заказы. Продолжить?",
             buttons=[
-                MDFlatButton(text="Отмена", on_release=lambda x: self.close_dialog()),
-                MDRaisedButton(text="Очистить", on_release=lambda x: self.clear_database_except_models())
+                MDFlatButton(
+                    text="Отмена",
+                        theme_text_color="Custom",
+                        text_color="white",
+                        md_bg_color="green",
+                    on_release=lambda x: self.close_dialog()),
+                MDRaisedButton(
+                    text="Очистить",
+                        theme_text_color="Custom",
+                        text_color="white",
+                        md_bg_color="green",
+                    on_release=lambda x: self.clear_database_except_models())
             ]
         )
         self.dialog.open()
@@ -1587,7 +1733,13 @@ class SettingsTab(MDBottomNavigationItem):
             title=title,
             text=text,
             buttons=[
-                MDFlatButton(text="OK", on_release=lambda x: dialog.dismiss())
+                MDFlatButton(
+                    text="OK",
+                    theme_text_color="Custom",
+                    text_color="white",
+                    md_bg_color="green",
+                    on_release=lambda x: dialog.dismiss()
+                )
             ]
         )
         dialog.open()
