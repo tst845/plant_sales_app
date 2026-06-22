@@ -50,22 +50,6 @@ class PlantProtectionApp(MDApp):
 
         return self.screen_manager
     
-    def show_substance_editor(self, pesticide_id):
-        """Показать редактор действующих веществ"""
-        from app.ui.screens.substance_editor import SubstanceEditorPopup
-        
-        def refresh_catalog():
-            # Обновить отображение в каталоге
-            current_screen = self.screen_manager.current_screen
-            if hasattr(current_screen, 'refresh_pesticide'):
-                current_screen.refresh_pesticide(pesticide_id)
-        
-        popup = SubstanceEditorPopup(
-            app=self,
-            pesticide_id=pesticide_id,
-            on_save_callback=refresh_catalog
-        )
-        popup.open()
 
     # Методы навигации
     def open_diagnosis(self):

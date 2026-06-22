@@ -1,4 +1,4 @@
-import cv2
+import io
 import numpy as np
 from PIL import Image
 
@@ -28,26 +28,17 @@ class ImageProcessor:
             print(f"Ошибка обработки изображения: {e}")
             return None
     
+
     @staticmethod
     def load_and_preprocess_from_bytes(image_bytes, target_size=(224, 224)):
-        """Загрузка и предобработка изображения из bytes"""
+        """Загрузка и предобработка изображения из bytes (без OpenCV)"""
         try:
-            # Конвертация bytes в numpy array
-            nparr = np.frombuffer(image_bytes, np.uint8)
-            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            
-            # Изменение размера
-            image = cv2.resize(image, target_size)
-            
-            # Нормализация
-            image = image / 255.0
-            
-            # Добавление batch dimension
-            image = np.expand_dims(image, axis=0)
-            
-            return image
-            
+            image = Image.open(io.BytesIO(image_bytes))
+            image = image.convert('RGB')
+            image = image.resize(target_size)
+            image_array = np.array(image) / 255.0
+            image_array = np.expand_dims(image_array, axis=0)
+            return image_array
         except Exception as e:
             print(f"Ошибка обработки изображения из bytes: {e}")
             return None

@@ -14,7 +14,7 @@ from kivymd.uix.card import MDCard
 from kivymd.uix.toolbar import MDTopAppBar
 from kivymd.uix.progressbar import MDProgressBar
 from kivymd.app import MDApp
-import pandas as pd
+
 from app.ml.inference import PlantModel
 import os 
 from kivy.utils import platform
@@ -253,7 +253,7 @@ class CameraScreen(Screen):
     def _on_camera_success(self, file_path):
         if file_path and os.path.exists(file_path):
             dest = os.path.join(self._get_cache_dir(), 'camera_photo.jpg')
-            import shutil
+   
             shutil.copy(file_path, dest)
             Clock.schedule_once(lambda dt: self.load_image(dest), 0)
         else:
